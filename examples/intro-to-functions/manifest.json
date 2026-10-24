@@ -1,0 +1,23 @@
+{
+  "format": "curie",
+  "formatVersion": "0.1.0",
+  "id": "org.curie.sample.functions",
+  "title": "A first look at functions",
+  "description": "A short introduction to functions with a graph and scientific notation.",
+  "author": "Curie",
+  "entry": "document.json",
+  "assetsDirectory": "assets/",
+  "requiredFeatures": [
+    "markdown",
+    "math",
+    "image",
+    "video",
+    "graph",
+    "lottie",
+    "quiz",
+    "slider",
+    "reveal",
+    "flashcard",
+    "callout"
+  ]
+}

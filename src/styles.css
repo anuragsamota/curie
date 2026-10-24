@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@plugin "daisyui" {
+  themes: light --default, dark --prefersdark;
+}
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; }
+button { cursor: pointer; }
+
+.curie-prose {
+  font-size: 1.025rem;
+  line-height: 1.85;
+}
+.curie-prose h1, .curie-prose h2, .curie-prose h3 {
+  letter-spacing: -0.035em;
+  font-weight: 800;
+}
+.curie-prose h2 { margin-top: 2.3rem; margin-bottom: 1rem; }
+.curie-prose p { margin-top: 1rem; margin-bottom: 1rem; }
+.curie-prose blockquote {
+  border-left-color: oklch(var(--p));
+  background: oklch(var(--b2) / 0.65);
+  padding: 0.75rem 1rem;
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+.curie-prose :not(pre) > code {
+  background: oklch(var(--b2));
+  border-radius: 0.35rem;
+  padding: 0.15rem 0.35rem;
+}
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.5rem 0; }

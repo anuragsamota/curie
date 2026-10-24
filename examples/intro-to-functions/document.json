@@ -1,0 +1,95 @@
+{
+  "documentVersion": 1,
+  "blocks": [
+    {
+      "id": "welcome",
+      "type": "markdown",
+      "content": "# A first look at functions\n\nA function maps each input to exactly one output.\n\n## Mathematical notation\n\n$$f(x) = 2x + 1$$\n\nScientific notation also works: \\(\\rho = \\frac{m}{V}\\), where density is mass divided by volume."
+    },
+    {
+      "id": "line-chart",
+      "type": "graph",
+      "title": "Input and output",
+      "kind": "line",
+      "xLabel": "Input x",
+      "yLabel": "Output f(x)",
+      "data": [
+        {
+          "x": -2,
+          "y": -3
+        },
+        {
+          "x": -1,
+          "y": -1
+        },
+        {
+          "x": 0,
+          "y": 1
+        },
+        {
+          "x": 1,
+          "y": 3
+        },
+        {
+          "x": 2,
+          "y": 5
+        }
+      ]
+    },
+    {
+      "id": "portable-image",
+      "type": "image",
+      "src": "assets/example.svg",
+      "alt": "Illustration placeholder for a function machine",
+      "caption": "Example of an asset stored inside the lesson package."
+    },
+    {
+      "id": "orbit-animation",
+      "type": "lottie",
+      "src": "assets/orbit-animation.json",
+      "title": "A tiny animated orbit",
+      "caption": "A local Lottie JSON animation packaged with the lesson."
+    },
+    {
+      "id": "density-tip",
+      "type": "callout",
+      "variant": "tip",
+      "title": "Science tip",
+      "content": "Density is mass divided by volume: $$\\\\rho = \\\\frac{m}{V}$$."
+    },
+    {
+      "id": "quiz-density",
+      "type": "quiz",
+      "question": "Which expression represents density?",
+      "options": [
+        "mass × volume",
+        "mass ÷ volume",
+        "volume ÷ mass"
+      ],
+      "correctIndex": 1,
+      "explanation": "Density is mass per unit volume."
+    },
+    {
+      "id": "slider-demo",
+      "type": "slider",
+      "label": "Adjust the mass",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "initial": 50,
+      "unit": "kg"
+    },
+    {
+      "id": "reveal-hint",
+      "type": "reveal",
+      "title": "Reveal a hint",
+      "content": "Think about how many units of mass fit into each unit of volume."
+    },
+    {
+      "id": "flashcard-density",
+      "type": "flashcard",
+      "front": "What is density?",
+      "back": "Mass per unit volume."
+    }
+  ]
+}
