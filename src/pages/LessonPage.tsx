@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowUp, BookOpenCheck, Clock3, FileWarning, Layers, ListTree, PenLine, Sparkles, Trophy, X } from "lucide-react";
 import BlockRenderer, { LessonRuntimeProvider } from "../components/BlockRenderer";
+import { LessonVariables } from "../components/variables";
 import { useLessonContent, useLibrary } from "../lib/library";
 import { flattenBlocks, lessonOutline, readingMinutes, type OutlineItem } from "../lib/lesson";
 import { navigate, paths } from "../lib/router";
@@ -10,6 +11,7 @@ import { useSettings } from "../lib/settings";
 import { useSound } from "../lib/sound";
 import { Confetti } from "../ui/Confetti";
 import { useLessonMenu } from "../ui/LessonActions";
+import { CoverBanner } from "../ui/LessonCover";
 import { Menu } from "../ui/Menu";
 import { useToast } from "../ui/Toasts";
 import NotFoundPage from "./NotFoundPage";
@@ -160,7 +162,7 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
   const { manifest, document: lessonDoc } = content;
   const outlineOpen = settings.outlineOpen;
 
-  return <LessonRuntimeProvider value={runtime}>
+  return <LessonRuntimeProvider value={runtime}><LessonVariables document={lessonDoc}>
     <ReadingBar title={manifest.title} onProgress={onProgress}>
       <button className="btn btn-ghost btn-sm btn-square xl:hidden" aria-label="Show outline" onClick={() => setDrawerOpen(true)}><ListTree size={18} /></button>
       <button className={`btn btn-sm btn-square hidden xl:inline-flex ${outlineOpen ? "btn-active" : "btn-ghost"}`} aria-pressed={outlineOpen} aria-label="Toggle outline panel" title="Toggle outline"
@@ -178,6 +180,7 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
             {quizCount > 0 && <span className="flex items-center gap-1 rounded-full bg-base-200 px-2.5 py-1"><Sparkles size={13} /> {quizCount} quick {quizCount === 1 ? "check" : "checks"}</span>}
             {lesson.completedAt && <span className="flex items-center gap-1 rounded-full bg-success/12 px-2.5 py-1 text-success"><BookOpenCheck size={13} /> Completed</span>}
           </div>
+          <CoverBanner image={manifest.cover ? content.assets[manifest.cover] : undefined} className="mb-8" />
           <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">{manifest.title}</h1>
           {manifest.description && <p className="mt-4 text-lg leading-8 text-base-content/65">{manifest.description}</p>}
           {manifest.author && <p className="mt-5 flex items-center gap-2.5 text-sm">
@@ -223,5 +226,5 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
         <div className="flex-1 overflow-y-auto p-2"><Outline items={outline} active={active} onNavigate={goTo} /></div>
       </div>
     </div>, document.body)}
-  </LessonRuntimeProvider>;
+  </LessonVariables></LessonRuntimeProvider>;
 }

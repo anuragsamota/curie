@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
-import { exportCurie, loadCurie, type AssetMap } from "../curie/package";
+import { exportCurieInBackground, loadCurieInBackground } from "../curie/background";
+import type { AssetMap, ProgressFn } from "../curie/package";
 import type { CurieDocument, CurieManifest } from "../curie/types";
 import { blockText, flattenBlocks, readingMinutes, slugify } from "./lesson";
 
@@ -30,7 +31,13 @@ export type LessonSummary = {
   managed?: boolean;
   /** Native only: the file at `path` could not be found when the library was loaded. */
   missing?: boolean;
+  /** A small JPEG data URL of the lesson's cover image, for library cards. */
+  cover?: string;
+  /** Set for lessons downloaded from a lesson source: which file, at which version. */
+  origin?: LessonOrigin;
 };
+
+export type LessonOrigin = { source: string; path: string; sha: string };
 
 export function summarize(content: LessonContent): Pick<LessonSummary, "manifest" | "minutes" | "blocks" | "size" | "searchText"> {
   const { id, title, description, author } = content.manifest;
@@ -50,8 +57,11 @@ export interface LibraryBackend {
   location: string;
   list(): Promise<LessonSummary[]>;
   read(summary: LessonSummary): Promise<LessonContent>;
-  /** Saves contents and metadata; returns the summary as stored (e.g. with its file path). */
-  write(summary: LessonSummary, content: LessonContent): Promise<LessonSummary>;
+  /**
+   * Saves contents and metadata; returns the summary as stored (e.g. with its file path).
+   * `packed` is the already-zipped package when the caller has it, which saves re-compressing.
+   */
+  write(summary: LessonSummary, content: LessonContent, packed?: Blob): Promise<LessonSummary>;
   /** Saves metadata only (progress, last opened); natively also re-adds an entry whose file still exists. */
   update(summary: LessonSummary): Promise<void>;
   remove(summary: LessonSummary): Promise<void>;
@@ -162,10 +172,36 @@ export async function appFolder(): Promise<string> {
   return appDataDir();
 }
 
-export async function readNativeFile(path: string): Promise<File> {
-  const { readFile } = await import("@tauri-apps/plugin-fs");
+const CHUNK_BYTES = 2 * 1024 * 1024;
+
+/** Reads a file in chunks so large lessons can report progress; falls back to a single read. */
+async function readNativeBytes(path: string, onProgress?: ProgressFn): Promise<Uint8Array<ArrayBuffer>> {
+  const fs = await import("@tauri-apps/plugin-fs");
+  if (!onProgress) return fs.readFile(path) as Promise<Uint8Array<ArrayBuffer>>;
+  let handle: Awaited<ReturnType<typeof fs.open>> | undefined;
+  try {
+    handle = await fs.open(path, { read: true });
+    const { size } = await handle.stat();
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    while (offset < size) {
+      const read = await handle.read(bytes.subarray(offset, Math.min(size, offset + CHUNK_BYTES)));
+      if (read === null) break;
+      offset += read;
+      onProgress(offset / size);
+    }
+    return offset === size ? bytes : bytes.slice(0, offset);
+  } catch {
+    // Some providers (e.g. a few Android content:// sources) don't report a size.
+    return fs.readFile(path) as Promise<Uint8Array<ArrayBuffer>>;
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
+}
+
+export async function readNativeFile(path: string, onProgress?: ProgressFn): Promise<File> {
   const { basename } = await import("@tauri-apps/api/path");
-  const bytes = await readFile(path);
+  const bytes = await readNativeBytes(path, onProgress);
   let name = "lesson.curie";
   try { name = await basename(path); } catch { /* content:// URIs have no usable basename */ }
   // Android content:// URIs often lack the extension; loadCurie only needs it as a hint.
@@ -217,11 +253,11 @@ async function nativeBackend(): Promise<LibraryBackend> {
       } catch {
         throw new Error(`The lesson file could not be opened: ${summary.path}. It may have been moved or deleted.`);
       }
-      return loadCurie(file);
+      return loadCurieInBackground(file);
     },
-    async write(summary, content) {
+    async write(summary, content, packed) {
       const path = summary.path ?? await join(lessonsDir, `${slugify(content.manifest.title)}-${summary.key}.curie`);
-      await writeNativeFile(path, await exportCurie(content.manifest, content.document, content.assets));
+      await writeNativeFile(path, packed ?? await exportCurieInBackground(content));
       const stored: LessonSummary = { ...summary, path, managed: summary.path ? summary.managed : true, missing: undefined };
       entries.set(stored.key, stored);
       await saveIndex();

@@ -1,13 +1,12 @@
-import { readFile, readdir } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { isExternalSource, isSafePackagePath, mimeForPath } from "./assets";
 import { detectFeatures, exportCurie, findLessonIssues, loadCurie, validateDocument } from "./package";
 import { CurieDocumentSchema, CurieManifestSchema } from "./types";
 
-const EXAMPLES = join(import.meta.dirname, "../../examples");
-const EXAMPLE_NAMES = ["intro-to-functions", "keplers-laws", "rice-and-the-chessboard", "why-the-sky-is-blue"];
 
 const manifest = {
   format: "curie", formatVersion: "0.1.0", id: "test.lesson", title: "Test lesson",
@@ -148,21 +147,36 @@ describe("findLessonIssues and detectFeatures", () => {
   });
 });
 
-describe("example packages", () => {
-  it.each(EXAMPLE_NAMES)("%s.curie loads, has no issues, and matches its source folder", async (name) => {
-    const EXAMPLE_DIR = join(EXAMPLES, name);
-    const loaded = await loadCurie(new File([await readFile(`${EXAMPLE_DIR}.curie`)], `${name}.curie`));
+// Lessons now live in their own repository; check them when it is checked out next to this one.
+const LESSONS = process.env.CURIE_LESSONS_DIR ?? join(import.meta.dirname, "../../../curie-lessons");
+const lessonFiles = existsSync(LESSONS) ? readdirSync(LESSONS).filter((name) => name.endsWith(".curie")) : [];
+
+describe.skipIf(lessonFiles.length === 0)("curie-lessons packages", () => {
+  it.each(lessonFiles)("%s loads and has no issues", async (name) => {
+    const loaded = await loadCurie(new File([await readFile(join(LESSONS, name))], name));
     expect(findLessonIssues(loaded.manifest, loaded.document, loaded.assets)).toEqual([]);
     expect(loaded.manifest.requiredFeatures).toEqual(detectFeatures(loaded.document));
-    const sourceFiles = (await readdir(EXAMPLE_DIR, { recursive: true, withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) => relative(EXAMPLE_DIR, join(entry.parentPath, entry.name)).split("\\").join("/"));
-    // If this fails, run `pnpm pack:example` to rebuild the archive.
-    expect(Object.keys(loaded.assets).sort()).toEqual(sourceFiles.filter((path) => path.startsWith("assets/")).sort());
-    expect(loaded.document).toEqual(CurieDocumentSchema.parse(JSON.parse(await readFile(join(EXAMPLE_DIR, "document.json"), "utf8"))));
-    for (const [path, blob] of Object.entries(loaded.assets)) {
-      expect(await blob.text(), path).toBe(await readFile(join(EXAMPLE_DIR, path), "utf8"));
-    }
+  });
+});
+
+describe("cover images", () => {
+  it("keeps a cover that exists and drops one that doesn't", async () => {
+    const withCover = await loadCurie(await makePackage({ ...validFiles(), "manifest.json": { ...manifest, cover: "assets/pic.svg" } }));
+    expect(withCover.manifest.cover).toBe("assets/pic.svg");
+    const missing = await loadCurie(await makePackage({ ...validFiles(), "manifest.json": { ...manifest, cover: "assets/gone.png" } }));
+    expect(missing.manifest.cover).toBeUndefined();
+  });
+
+  it("reports a missing cover in the editor", () => {
+    const issues = findLessonIssues(CurieManifestSchema.parse({ ...manifest, cover: "assets/gone.png" }), CurieDocumentSchema.parse(document), { "assets/pic.svg": new Blob([SVG]) });
+    expect(issues).toEqual([expect.objectContaining({ message: expect.stringMatching(/cover image/) })]);
+  });
+
+  it("reports load progress up to 1", async () => {
+    const seen: number[] = [];
+    await loadCurie(await makePackage(validFiles()), (fraction) => seen.push(fraction));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.at(-1)).toBe(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { Component, createContext, useContext, useEffect, useMemo, useState } from "react";
+import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -6,15 +6,18 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import Lottie from "lottie-react";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { AlertTriangle, Check, ChevronDown, CircleCheck, Info, Lightbulb, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, CircleCheck, EyeOff, Info, Lightbulb, RotateCcw, Sparkles, X } from "lucide-react";
 import { isExternalSource, isPackageAssetPath } from "../curie/assets";
+import { fillTemplate, formatValue, tryEvaluate } from "../curie/expr";
+import { isBlockedProperty, sanitizeSvg } from "../curie/svg";
 import type { AssetMap } from "../curie/package";
 import type { CurieNode } from "../curie/types";
 import { useSettings } from "../lib/settings";
 import { useSound } from "../lib/sound";
+import { useVariables } from "./variables";
 
 /** Lesson-level hooks for interactive blocks; optional so blocks also render in the editor. */
 export type LessonRuntime = { onQuizAnswered?: (id: string, correct: boolean) => void };
@@ -29,13 +32,21 @@ type Props = {
   frame?: (node: CurieNode, content: ReactNode) => ReactNode;
 };
 
+/** Fills `{{ expression }}` placeholders with the lesson's current variable values. */
+function useFill() {
+  const { scope } = useVariables();
+  return (text: string) => fillTemplate(text, scope);
+}
+
 function MarkdownBlock({ content }: { content: string }) {
-  return <div className="prose max-w-none curie-prose">
+  const filled = useFill()(content);
+  // Re-render Markdown and math only when the filled text actually changes (e.g. while dragging a slider).
+  return useMemo(() => <div className="prose max-w-none curie-prose">
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
       components={{ a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" /> }}
-    >{content}</ReactMarkdown>
-  </div>;
+    >{filled}</ReactMarkdown>
+  </div>, [filled]);
 }
 
 type AssetState = { url?: string; failed: boolean };
@@ -170,10 +181,11 @@ const CALLOUTS = {
 
 function CalloutBlock({ node }: { node: Extract<CurieNode, { type: "callout" }> }) {
   const { icon: Icon, box, tone } = CALLOUTS[node.variant];
+  const fill = useFill();
   return <aside className={`my-2 flex gap-3 rounded-2xl border p-4 sm:p-5 ${box}`}>
     <Icon size={20} className={`mt-1 shrink-0 ${tone}`} aria-hidden="true" />
     <div className="min-w-0 flex-1">
-      {node.title && <h3 className="font-display mb-0.5 font-bold">{node.title}</h3>}
+      {node.title && <h3 className="font-display mb-0.5 font-bold">{fill(node.title)}</h3>}
       <div className="[&_.curie-prose]:text-[0.97rem] [&_.curie-prose_p]:my-1"><MarkdownBlock content={node.content} /></div>
     </div>
   </aside>;
@@ -182,11 +194,12 @@ function CalloutBlock({ node }: { node: Extract<CurieNode, { type: "callout" }> 
 function RevealBlock({ node }: { node: Extract<CurieNode, { type: "reveal" }> }) {
   const [open, setOpen] = useState(node.initiallyOpen ?? false);
   const play = useSound();
+  const fill = useFill();
   return <div className="my-2 rounded-2xl border border-base-300 bg-base-100">
     <button type="button" aria-expanded={open} className="flex w-full items-center gap-3 rounded-2xl p-4 text-left font-semibold transition-colors hover:bg-base-200/60"
       onClick={() => { setOpen(!open); play(open ? "tap" : "open"); }}>
       <Sparkles size={18} className="text-accent" aria-hidden="true" />
-      <span className="flex-1">{node.title}</span>
+      <span className="flex-1">{fill(node.title)}</span>
       <ChevronDown size={18} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
     </button>
     <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
@@ -246,8 +259,13 @@ function QuizBlock({ node }: { node: Extract<CurieNode, { type: "quiz" }> }) {
 }
 
 function SliderBlock({ node }: { node: Extract<CurieNode, { type: "slider" }> }) {
-  const [value, setValue] = useState(node.initial);
-  useEffect(() => setValue(node.initial), [node.initial]);
+  const [local, setLocal] = useState(node.initial);
+  useEffect(() => setLocal(node.initial), [node.initial]);
+  // A slider with a variable shares its value with the rest of the lesson.
+  const { scope, set } = useVariables();
+  const shared = node.variable ? scope[node.variable] : undefined;
+  const value = typeof shared === "number" ? shared : local;
+  const setValue = (next: number) => node.variable && typeof shared === "number" ? set({ [node.variable]: next }) : setLocal(next);
   const decimals = Math.min(6, (String(node.step ?? 1).split(".")[1] || "").length);
   const unit = node.unit ? ` ${node.unit}` : "";
   const percent = node.max > node.min ? ((value - node.min) / (node.max - node.min)) * 100 : 0;
@@ -262,6 +280,152 @@ function SliderBlock({ node }: { node: Extract<CurieNode, { type: "slider" }> })
   </section>;
 }
 
+function ToggleBlock({ node }: { node: Extract<CurieNode, { type: "toggle" }> }) {
+  const { scope, set } = useVariables();
+  const play = useSound();
+  const checked = scope[node.variable] === true;
+  return <label className="my-2 flex cursor-pointer items-center justify-between gap-4 rounded-3xl border border-base-300 bg-base-100 p-5 sm:px-6">
+    <span className="font-semibold">{node.label}</span>
+    <input type="checkbox" className="toggle toggle-primary" checked={checked} onChange={(event) => { set({ [node.variable]: event.target.checked }); play("toggle"); }} />
+  </label>;
+}
+
+function ChoiceBlock({ node }: { node: Extract<CurieNode, { type: "choice" }> }) {
+  const { scope, set } = useVariables();
+  const play = useSound();
+  const current = scope[node.variable];
+  const choose = (value: number | string) => { set({ [node.variable]: value }); play("tap"); };
+  return <section className="my-2 rounded-3xl border border-base-300 bg-base-100 p-5 sm:p-6">
+    <p className="mb-3 font-semibold">{node.label}</p>
+    {node.options.length <= 5
+      ? <div role="radiogroup" aria-label={node.label} className="flex flex-wrap gap-2">
+        {node.options.map((option, index) => <button key={index} type="button" role="radio" aria-checked={current === option.value} onClick={() => choose(option.value)}
+          className={`press rounded-2xl border-2 px-4 py-2 text-sm font-semibold transition-colors ${current === option.value ? "border-primary bg-primary/10 text-primary" : "border-base-300 hover:border-base-content/25"}`}>{option.label}</button>)}
+      </div>
+      : <select className="select w-full" aria-label={node.label} value={node.options.findIndex((option) => option.value === current)} onChange={(event) => choose(node.options[Number(event.target.value)].value)}>
+        {node.options.map((option, index) => <option key={index} value={index}>{option.label}</option>)}
+      </select>}
+  </section>;
+}
+
+function ButtonBlock({ node }: { node: Extract<CurieNode, { type: "button" }> }) {
+  const { scope, set } = useVariables();
+  const play = useSound();
+  const run = () => {
+    // Actions run in order, each seeing the results of the ones before it.
+    const working = { ...scope };
+    const changes: Record<string, string | number | boolean> = {};
+    for (const action of node.actions) {
+      const value = tryEvaluate(action.expression, working, undefined);
+      if (value === undefined) continue;
+      working[action.variable] = value;
+      changes[action.variable] = value;
+    }
+    set(changes);
+    play("pop");
+  };
+  return <div className="my-2 flex justify-center">
+    <button type="button" className={`btn press ${node.style === "outline" ? "btn-outline" : "btn-primary"}`} onClick={run}>{fillTemplate(node.label, scope)}</button>
+  </div>;
+}
+
+function DisplayBlock({ node }: { node: Extract<CurieNode, { type: "display" }> }) {
+  const { scope } = useVariables();
+  return <section className="my-2 rounded-3xl border border-base-300 bg-base-100 p-5 sm:p-6">
+    {node.title && <h3 className="font-display mb-4 text-lg font-semibold">{fillTemplate(node.title, scope)}</h3>}
+    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${node.items.length > 2 ? 9 : 12}rem, 1fr))` }}>
+      {node.items.map((item, index) => <div key={index} className="rounded-2xl bg-base-200/70 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-base-content/55">{item.label}</p>
+        <p className="font-display mt-1 text-2xl font-bold tabular-nums text-primary" aria-live="polite">
+          {formatValue(tryEvaluate(item.expression, scope, undefined))}{item.unit && <span className="ml-1 text-base font-semibold text-base-content/55">{item.unit}</span>}
+        </p>
+      </div>)}
+    </div>
+  </section>;
+}
+
+const PLOT_SAMPLES = 160;
+const PLOT_COLORS = ["--color-primary", "--color-accent", "--color-secondary", "--color-info", "--color-warning", "--color-success"];
+
+function PlotBlock({ node }: { node: Extract<CurieNode, { type: "plot" }> }) {
+  const { scope } = useVariables();
+  const { mode } = useSettings();
+  const colors = useMemo(() => PLOT_COLORS.map((name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#5b4bd5"), [mode]);
+  const data = useMemo(() => Array.from({ length: PLOT_SAMPLES + 1 }, (_, i) => {
+    const x = node.xMin + (node.xMax - node.xMin) * (i / PLOT_SAMPLES);
+    const point: Record<string, number | null> = { x };
+    node.functions.forEach((fn, index) => {
+      const y = tryEvaluate(fn.expression, { ...scope, x }, undefined);
+      // Gaps (e.g. tan near π/2 or sqrt of negatives) break the line instead of drawing nonsense.
+      point[`f${index}`] = typeof y === "number" && Number.isFinite(y) ? y : null;
+    });
+    return point;
+  }), [node, scope]);
+  const fixedY = node.yMin !== undefined || node.yMax !== undefined;
+  const axisTick = { fill: "currentColor", fontSize: 12, opacity: 0.7 };
+  return <section className="my-2 rounded-3xl border border-base-300 bg-base-100 p-4 sm:p-6">
+    {node.title && <h3 className="font-display mb-4 text-lg font-semibold">{fillTemplate(node.title, scope)}</h3>}
+    <div className="h-72 w-full text-base-content">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 12, right: 16, bottom: node.xLabel ? 18 : 4, left: node.yLabel ? 8 : 0 }}>
+          <CartesianGrid strokeDasharray="3 4" stroke="currentColor" opacity={0.12} />
+          <XAxis dataKey="x" type="number" domain={[node.xMin, node.xMax]} tickFormatter={(value: number) => formatValue(value)} tick={axisTick} tickLine={false} axisLine={{ stroke: "currentColor", opacity: 0.2 }}
+            label={node.xLabel ? { value: node.xLabel, position: "insideBottom", offset: -12, fill: "currentColor", fontSize: 12, opacity: 0.6 } : undefined} />
+          <YAxis type="number" domain={[node.yMin ?? "auto", node.yMax ?? "auto"]} allowDataOverflow={fixedY} tickFormatter={(value: number) => formatValue(value)} tick={axisTick} tickLine={false} axisLine={false} width={48}
+            label={node.yLabel ? { value: node.yLabel, angle: -90, position: "insideLeft", fill: "currentColor", fontSize: 12, opacity: 0.6, style: { textAnchor: "middle" } } : undefined} />
+          <Tooltip formatter={(value: number) => formatValue(value)} labelFormatter={(value: number) => `x = ${formatValue(value)}`} cursor={{ stroke: "currentColor", strokeOpacity: 0.2 }}
+            contentStyle={{ borderRadius: 12, border: "1px solid var(--color-base-300)", background: "var(--color-base-100)", color: "var(--color-base-content)" }} />
+          {node.functions.length > 1 && <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 12, paddingBottom: 8 }} />}
+          {node.functions.map((fn, index) => <Line key={index} dataKey={`f${index}`} name={fillTemplate(fn.label || fn.expression, scope)} type="monotone" dot={false} stroke={colors[index % colors.length]}
+            strokeWidth={3} isAnimationActive={false} connectNulls={false} />)}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  </section>;
+}
+
+function DiagramBlock({ node, assets, onError }: { node: Extract<CurieNode, { type: "diagram" }>; assets?: AssetMap; onError: Props["onError"] }) {
+  const blob = assets?.[node.src];
+  const [markup, setMarkup] = useState<{ svg?: string; failed?: string }>({});
+  const container = useRef<HTMLDivElement>(null);
+  const { scope } = useVariables();
+
+  useEffect(() => {
+    let active = true;
+    setMarkup({});
+    if (!blob) { setMarkup({ failed: node.src ? "Diagram file is missing" : "No SVG chosen yet" }); return; }
+    blob.text().then((text) => active && setMarkup({ svg: sanitizeSvg(text) }))
+      .catch((error: unknown) => {
+        if (!active) return;
+        setMarkup({ failed: "Diagram could not be displayed" });
+        onError(error instanceof Error ? error.message : "Diagram could not be displayed.");
+      });
+    return () => { active = false; };
+  }, [blob, node.src, onError]);
+
+  // Bindings are applied directly to the SVG elements; React doesn't own the SVG's contents.
+  useLayoutEffect(() => {
+    const root = container.current;
+    if (!root || !markup.svg) return;
+    for (const binding of node.bindings) {
+      if (isBlockedProperty(binding.property)) continue;
+      const element = root.querySelector(`[id="${CSS.escape(binding.target)}"]`);
+      const value = tryEvaluate(binding.expression, scope, undefined);
+      if (!element || value === undefined) continue;
+      if (binding.property === "text") element.textContent = formatValue(value);
+      else element.setAttribute(binding.property, typeof value === "number" ? formatValue(value) : String(value));
+    }
+  }, [markup.svg, node.bindings, scope]);
+
+  return <figure className="my-2 rounded-3xl border border-base-300 bg-base-100 p-4 sm:p-6">
+    {node.title && <h3 className="font-display mb-3 text-lg font-semibold">{fillTemplate(node.title, scope)}</h3>}
+    {markup.failed ? <MediaFallback label={markup.failed} src={node.src} />
+      : markup.svg ? <div ref={container} className="curie-diagram mx-auto max-w-2xl [&_svg]:h-auto [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: markup.svg }} />
+      : <div className="skeleton h-56 w-full rounded-2xl" />}
+    <Caption>{node.caption && fillTemplate(node.caption, scope)}</Caption>
+  </figure>;
+}
+
 const FLIP_MS = 170;
 
 /**
@@ -271,6 +435,9 @@ const FLIP_MS = 170;
 function FlashcardBlock({ node }: { node: Extract<CurieNode, { type: "flashcard" }> }) {
   const [flipped, setFlipped] = useState(false);
   const [turning, setTurning] = useState(false);
+  const fill = useFill();
+  const front = fill(node.front);
+  const back = fill(node.back);
   const { reducedMotion } = useSettings();
   const play = useSound();
   const flip = () => {
@@ -281,11 +448,11 @@ function FlashcardBlock({ node }: { node: Extract<CurieNode, { type: "flashcard"
     setTimeout(() => { setFlipped((value) => !value); setTurning(false); }, FLIP_MS);
   };
   return <button type="button" aria-pressed={flipped} onClick={flip}
-    aria-label={flipped ? `Answer: ${node.back}. Press to see the question.` : `${node.front}. Press to reveal the answer.`}
+    aria-label={flipped ? `Answer: ${back}. Press to see the question.` : `${front}. Press to reveal the answer.`}
     style={{ transform: `perspective(1200px) rotateY(${turning ? 90 : 0}deg)`, transition: `transform ${FLIP_MS}ms ${turning ? "ease-in" : "ease-out"}` }}
     className={`my-2 flex min-h-52 w-full flex-col items-center justify-center rounded-3xl border p-6 text-center transition-colors ${flipped ? "border-primary/30 bg-primary text-primary-content" : "border-base-300 bg-gradient-to-br from-base-200/80 to-base-100 hover:border-primary/40"}`}>
     <span className={`mb-3 text-xs font-bold uppercase tracking-[0.16em] ${flipped ? "opacity-70" : "text-primary"}`}>{flipped ? "Answer" : "Flashcard"}</span>
-    <span className="font-display text-xl font-semibold leading-snug">{flipped ? node.back : node.front}</span>
+    <span className="font-display text-xl font-semibold leading-snug">{flipped ? back : front}</span>
     {!flipped && <span className="mt-4 text-xs text-base-content/50">Tap to flip</span>}
   </button>;
 }
@@ -303,7 +470,13 @@ class BlockErrorBoundary extends Component<{ id: string; onError: Props["onError
 }
 
 export default function BlockRenderer(props: Props) {
-  const content = <div id={`block-${props.node.id}`} className="scroll-mt-24">
+  const { scope } = useVariables();
+  const { showIf } = props.node;
+  const hidden = !!showIf && !tryEvaluate(showIf, scope, false);
+  // Learners never see hidden blocks; the editor shows them faded so they can still be edited.
+  if (hidden && !props.frame) return null;
+  const content = <div id={`block-${props.node.id}`} className={`scroll-mt-24 ${hidden ? "relative opacity-40" : ""}`}>
+    {hidden && <span className="badge badge-sm absolute -top-3 right-2 z-10 gap-1 border-base-300 bg-base-100 font-mono"><EyeOff size={11} /> {showIf}</span>}
     <BlockErrorBoundary id={props.node.id} onError={props.onError}><Block {...props} /></BlockErrorBoundary>
   </div>;
   return props.frame ? props.frame(props.node, content) : content;
@@ -322,6 +495,12 @@ function Block({ node, assets, onError, frame }: Props) {
     case "quiz": return <QuizBlock node={node} />;
     case "slider": return <SliderBlock node={node} />;
     case "flashcard": return <FlashcardBlock node={node} />;
+    case "toggle": return <ToggleBlock node={node} />;
+    case "choice": return <ChoiceBlock node={node} />;
+    case "button": return <ButtonBlock node={node} />;
+    case "display": return <DisplayBlock node={node} />;
+    case "plot": return <PlotBlock node={node} />;
+    case "diagram": return <DiagramBlock node={node} assets={assets} onError={onError} />;
     case "section": return <section className="my-4 border-l-2 border-primary/15 pl-4 sm:pl-6">
       {node.title && <h2 className="font-display mb-5 text-2xl font-bold tracking-tight sm:text-3xl">{node.title}</h2>}
       <div className="space-y-7">{node.children.map((child) => <BlockRenderer key={child.id} node={child} assets={assets} onError={onError} frame={frame} />)}</div>

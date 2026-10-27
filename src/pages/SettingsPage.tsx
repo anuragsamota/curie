@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
-import { Check, Copy, Database, Keyboard, Monitor, Moon, Palette, RotateCcw, Sparkles, Sun, Trash2, Volume2 } from "lucide-react";
+import type { FormEvent, ReactNode } from "react";
+import { Check, Copy, Database, FolderGit2, Keyboard, Monitor, Moon, Palette, Plus, RotateCcw, Sparkles, Sun, Trash2, Volume2 } from "lucide-react";
 import { useLibrary } from "../lib/library";
 import { formatBytes } from "../lib/lesson";
 import { useSettings, type Settings } from "../lib/settings";
 import { playSound, useSound } from "../lib/sound";
+import { DEFAULT_SOURCES, parseSource, sourceLabel } from "../lib/sources";
 import { useConfirm } from "../ui/Confirm";
 import { LogoMark } from "../ui/Logo";
 import { useToast } from "../ui/Toasts";
@@ -12,6 +13,7 @@ import { useToast } from "../ui/Toasts";
 const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "motion", label: "Motion & sound", icon: Sparkles },
+  { id: "sources", label: "Lesson sources", icon: FolderGit2 },
   { id: "data", label: "Library & data", icon: Database },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
 ] as const;
@@ -38,6 +40,47 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
       {option.icon && <option.icon size={15} />}{option.label}
     </button>)}
   </div>;
+}
+
+function SourcesSettings() {
+  const { settings, update } = useSettings();
+  const toast = useToast();
+  const play = useSound();
+  const [input, setInput] = useState("");
+  const [error, setError] = useState<string>();
+  const missingDefaults = DEFAULT_SOURCES.filter((source) => !settings.sources.some((item) => item.id === source.id));
+
+  const add = (event: FormEvent) => {
+    event.preventDefault();
+    const source = parseSource(input);
+    if (!source) return setError("Enter a GitHub repository, like owner/repo or https://github.com/owner/repo.");
+    if (settings.sources.some((item) => item.id === source.id)) return setError("That source is already in the list.");
+    update({ sources: [...settings.sources, source] });
+    setInput("");
+    setError(undefined);
+    play("success");
+    toast.success(`Lessons from ${sourceLabel(source)} will appear in Explore.`, { title: "Source added" });
+  };
+
+  return <>
+    {settings.sources.map((source) => <Row key={source.id} label={sourceLabel(source)} hint={`GitHub${source.ref ? ` · ${source.ref}` : ""}${DEFAULT_SOURCES.some((item) => item.id === source.id) ? " · default source" : ""}`}>
+      <button className="btn btn-sm btn-ghost text-error" onClick={() => {
+        update({ sources: settings.sources.filter((item) => item.id !== source.id) });
+        play("delete");
+        toast.info(`${sourceLabel(source)} was removed. Lessons you downloaded from it stay in your library.`, { action: { label: "Undo", onClick: () => update({ sources: [...settings.sources] }) } });
+      }}><Trash2 size={15} /> Remove</button>
+    </Row>)}
+    <form className="flex flex-col gap-2 py-4 last:pb-0" onSubmit={add}>
+      <p className="font-medium">Add a repository</p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input className={`input input-sm flex-1 font-mono text-xs ${error ? "input-error" : ""}`} placeholder="owner/repo or https://github.com/owner/repo/tree/main/lessons" value={input}
+          onChange={(event) => { setInput(event.target.value); setError(undefined); }} aria-label="GitHub repository" aria-invalid={!!error} />
+        <button className="btn btn-sm btn-primary" disabled={!input.trim()}><Plus size={15} /> Add source</button>
+      </div>
+      <p className={`text-xs ${error ? "text-error" : "text-base-content/50"}`}>{error ?? "Public repositories only. A folder link limits the source to that folder."}</p>
+      {missingDefaults.length > 0 && <button type="button" className="btn btn-link btn-xs w-fit px-0" onClick={() => { update({ sources: [...missingDefaults, ...settings.sources] }); play("toggle"); }}>Restore the default source</button>}
+    </form>
+  </>;
 }
 
 function ThemePreview({ mode }: { mode: "light" | "dark" }) {
@@ -129,6 +172,10 @@ export default function SettingsPage() {
               {(["success", "error", "flip", "complete"] as const).map((name) => <button key={name} className="btn btn-sm btn-ghost border-base-300 capitalize" disabled={!settings.sound} onClick={() => play(name)}>{name}</button>)}
             </div>
           </Row>
+        </Section>
+
+        <Section id="sources" title="Lesson sources" description="GitHub repositories whose .curie lessons are listed in Explore. Lessons are only downloaded when you choose them, and removing a source keeps the lessons you downloaded.">
+          <SourcesSettings />
         </Section>
 
         <Section id="data" title="Library & data" description={native

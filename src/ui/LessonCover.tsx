@@ -1,4 +1,6 @@
-// Generated cover art: each lesson gets a stable hue and orbit arrangement derived from its id.
+import { useEffect, useState } from "react";
+
+// A lesson's cover image when it has one; otherwise generated art: each lesson gets a stable hue and orbit arrangement derived from its id.
 
 function hash(text: string): number {
   let value = 2166136261;
@@ -6,7 +8,8 @@ function hash(text: string): number {
   return value >>> 0;
 }
 
-export function LessonCover({ seed, title, className = "" }: { seed: string; title: string; className?: string }) {
+export function LessonCover({ seed, title, image, className = "" }: { seed: string; title: string; image?: string; className?: string }) {
+  if (image) return <div aria-hidden="true" className={`relative overflow-hidden bg-base-300 ${className}`}><img src={image} alt="" className="absolute inset-0 size-full object-cover" draggable={false} /></div>;
   const h = hash(seed);
   const hue = h % 360;
   const tilt = (h >> 9) % 180;
@@ -26,4 +29,23 @@ export function LessonCover({ seed, title, className = "" }: { seed: string; tit
     </svg>
     <span className="font-display absolute bottom-2 left-4 text-6xl font-extrabold leading-none text-white/90 drop-shadow-sm">{initial}</span>
   </div>;
+}
+
+/** An object URL for a blob, revoked when the blob changes or the component unmounts. */
+export function useObjectUrl(blob?: Blob) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    if (!blob) return setUrl(undefined);
+    const next = URL.createObjectURL(blob);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [blob]);
+  return url;
+}
+
+/** The wide cover image at the top of a lesson. */
+export function CoverBanner({ image, className = "" }: { image?: Blob; className?: string }) {
+  const url = useObjectUrl(image);
+  if (!url) return null;
+  return <img src={url} alt="" draggable={false} className={`aspect-[16/7] w-full rounded-3xl object-cover ${className}`} />;
 }

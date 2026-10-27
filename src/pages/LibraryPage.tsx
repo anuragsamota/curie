@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowDownUp, BookOpenCheck, Clock3, FileWarning, FileUp, LayoutGrid, List, Plus, Search, Sparkles, X } from "lucide-react";
+import { ArrowDownUp, BookOpenCheck, Clock3, Compass, FileWarning, FileUp, LayoutGrid, List, Plus, Search, X } from "lucide-react";
 import { useLibrary } from "../lib/library";
 import { timeAgo } from "../lib/lesson";
 import { navigate, paths } from "../lib/router";
@@ -43,7 +43,7 @@ function LessonCard({ lesson, index, view }: { lesson: LessonSummary; index: num
   if (view === "list") {
     return <div style={style} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => event.key === "Enter" && event.target === event.currentTarget && open()}
       className="animate-rise group flex cursor-pointer items-center gap-4 rounded-2xl border border-transparent p-2.5 transition-colors hover:border-base-300 hover:bg-base-200/50">
-      <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} className="h-14 w-20 shrink-0 rounded-xl [&_span]:bottom-0.5 [&_span]:left-2 [&_span]:text-3xl" />
+      <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} image={lesson.cover} className="h-14 w-20 shrink-0 rounded-xl [&_span]:bottom-0.5 [&_span]:left-2 [&_span]:text-3xl" />
       <div className="min-w-0 flex-1">
         <p className="font-display truncate font-semibold">{lesson.manifest.title}</p>
         <p className="truncate text-sm text-base-content/60">{lesson.manifest.description || lesson.manifest.author || "No description"}</p>
@@ -56,7 +56,7 @@ function LessonCard({ lesson, index, view }: { lesson: LessonSummary; index: num
   return <div style={style} role="link" tabIndex={0} onClick={open} onKeyDown={(event) => event.key === "Enter" && event.target === event.currentTarget && open()}
     className="animate-rise lift group flex cursor-pointer flex-col rounded-3xl border border-base-300 bg-base-100">
     <div className="relative">
-      <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} className="h-36 rounded-t-3xl" />
+      <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} image={lesson.cover} className="h-36 rounded-t-3xl" />
       <div className="absolute right-2 top-2 rounded-xl bg-black/20 text-white backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
         <Menu items={menu(lesson, "library")} label={`Actions for ${lesson.manifest.title}`} />
       </div>
@@ -73,8 +73,6 @@ function LessonCard({ lesson, index, view }: { lesson: LessonSummary; index: num
 
 function EmptyLibrary() {
   const { openNewLesson, openImport } = useAppActions();
-  const { addExamples } = useLibrary();
-  const [loading, setLoading] = useState(false);
   return <div className="flex flex-col items-center px-4 py-14 text-center sm:py-24">
     <div className="relative mb-8 grid size-44 place-items-center">
       <div className="absolute inset-0 rounded-full bg-secondary/25 blur-3xl" />
@@ -92,11 +90,7 @@ function EmptyLibrary() {
       <button className="btn btn-primary btn-lg press" onClick={openNewLesson}><Plus size={20} /> New lesson</button>
       <button className="btn btn-outline btn-lg press" onClick={openImport}><FileUp size={20} /> Import .curie</button>
     </div>
-    <button className="btn btn-link btn-sm mt-4 text-base-content/60" disabled={loading} onClick={async () => {
-      setLoading(true);
-      await addExamples();
-      setLoading(false);
-    }}>{loading ? <span className="loading loading-spinner loading-xs" /> : <Sparkles size={15} />} Or add some example lessons</button>
+    <a className="btn btn-link btn-sm mt-4 text-base-content/60" href={paths.explore}><Compass size={15} /> Or explore lessons to download</a>
     <p className="mt-10 hidden text-xs text-base-content/40 sm:block">Tip: drag a .curie file anywhere onto this window to import it.</p>
   </div>;
 }

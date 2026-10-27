@@ -2,14 +2,26 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Curie reads and writes .curie lesson files the user opens, and keeps its library and settings in the app data folder.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
     "dialog:allow-save",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$APPDATA" }, { "path": "$APPDATA/**" }, { "path": "**" }]
+      "allow": [
+        {
+          "path": "$APPDATA"
+        },
+        {
+          "path": "$APPDATA/**"
+        },
+        {
+          "path": "**"
+        }
+      ]
     },
     "fs:allow-read-file",
     "fs:allow-write-file",
@@ -18,6 +30,9 @@
     "fs:allow-exists",
     "fs:allow-mkdir",
     "fs:allow-remove",
-    "fs:allow-rename"
+    "fs:allow-rename",
+    "fs:allow-open",
+    "fs:allow-read",
+    "fs:allow-fstat"
   ]
 }

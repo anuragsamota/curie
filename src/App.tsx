@@ -1,6 +1,6 @@
 import { Suspense, lazy, useState } from "react";
 import type { ReactNode } from "react";
-import { FileUp, Library, Monitor, Moon, PanelLeftClose, Plus, Settings, Sun, Volume2, VolumeX } from "lucide-react";
+import { Compass, FileUp, Library, Monitor, Moon, PanelLeftClose, Plus, Settings, Sun, Volume2, VolumeX } from "lucide-react";
 import { useFileDrop } from "./lib/drop";
 import { useLibrary } from "./lib/library";
 import { navigate, paths, useRoute, type Route } from "./lib/router";
@@ -13,6 +13,7 @@ import LibraryPage from "./pages/LibraryPage";
 
 const LessonPage = lazy(() => import("./pages/LessonPage"));
 const EditorPage = lazy(() => import("./pages/EditorPage"));
+const ExplorePage = lazy(() => import("./pages/ExplorePage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
@@ -64,6 +65,7 @@ function Sidebar({ route }: { route: Route }) {
       </div>
       <nav className="flex flex-col gap-1" aria-label="Main">
         <NavItem href={paths.library} icon={Library} label="Library" active={route.name === "library"} collapsed={collapsed} badge={lessons.length} />
+        <NavItem href={paths.explore} icon={Compass} label="Explore" active={route.name === "explore"} collapsed={collapsed} />
         <NavItem href={paths.settings} icon={Settings} label="Settings" active={route.name === "settings"} collapsed={collapsed} />
       </nav>
       {!collapsed && recent.length > 0 && <div>
@@ -71,7 +73,7 @@ function Sidebar({ route }: { route: Route }) {
         <div className="flex flex-col gap-1">
           {recent.map((lesson) => <a key={lesson.key} href={paths.lesson(lesson.key)}
             className={`press flex items-center gap-3 rounded-xl p-2 text-sm transition-colors ${activeKey === lesson.key ? "bg-base-300/70" : "hover:bg-base-300/50"}`}>
-            <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} className="size-9 shrink-0 rounded-lg [&_span]:bottom-0 [&_span]:left-1.5 [&_span]:text-xl" />
+            <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} image={lesson.cover} className="size-9 shrink-0 rounded-lg [&_span]:bottom-0 [&_span]:left-1.5 [&_span]:text-xl" />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium">{lesson.manifest.title}</span>
               <span className="mt-1 block h-1 overflow-hidden rounded-full bg-base-300"><span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round((lesson.progress ?? 0) * 100)}%` }} /></span>
@@ -94,6 +96,7 @@ function MobileNav({ route }: { route: Route }) {
   return <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg lg:hidden">
     <div className="mx-auto flex max-w-md items-center px-4">
       <a href={paths.library} className={item(route.name === "library")} onClick={() => play("tap")}><Library size={21} />Library</a>
+      <a href={paths.explore} className={item(route.name === "explore")} onClick={() => play("tap")}><Compass size={21} />Explore</a>
       <button className={item(false)} onClick={openNewLesson}><span className="-mt-5 grid size-12 place-items-center rounded-2xl bg-primary text-primary-content shadow-lg shadow-primary/30"><Plus size={22} /></span>Create</button>
       <a href={paths.settings} className={item(route.name === "settings")} onClick={() => play("tap")}><Settings size={21} />Settings</a>
     </div>
@@ -152,6 +155,7 @@ export default function App() {
       case "library": return <LibraryPage />;
       case "lesson": return <LessonPage lessonKey={route.key} />;
       case "editor": return <EditorPage lessonKey={route.key} />;
+      case "explore": return <ExplorePage />;
       case "settings": return <SettingsPage />;
       case "notfound": return <NotFoundPage />;
     }

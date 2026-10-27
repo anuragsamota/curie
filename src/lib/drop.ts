@@ -7,7 +7,7 @@ export type Dropped = { paths: string[]; files: File[] };
 /** Reads dropped native paths into File objects, for consumers that need the bytes. */
 export async function droppedFiles(dropped: Dropped): Promise<File[]> {
   if (dropped.files.length) return dropped.files;
-  return Promise.all(dropped.paths.map(readNativeFile));
+  return Promise.all(dropped.paths.map((path) => readNativeFile(path)));
 }
 
 /** Watches for files dragged over the window. `onHover` drives a drop overlay. */

@@ -78,7 +78,7 @@ A lesson describes its content and interaction data. Curie controls layout, typo
 
 ### 3.2 Structured content over executable lessons
 
-`.curie` files contain structured JSON and assets. They do not contain executable React components or arbitrary scripts. Each supported block type has a schema and a known renderer.
+`.curie` files contain structured JSON and assets. They do not contain executable React components or arbitrary scripts. Each supported block type has a schema and a known renderer. Lesson logic is expressed with sandboxed formulas over lesson variables (section 7.7), not code.
 
 ### 3.3 Portability by default
 
@@ -346,9 +346,40 @@ SVG handling must be considered a security-sensitive area. If SVG content can or
 
 ### 7.6 Interactive blocks
 
-Quizzes, sliders, reveals, and flashcards provide lightweight interaction without a general-purpose simulation engine.
+Quizzes, sliders, reveals, and flashcards provide lightweight interaction without a general-purpose simulation engine. Interaction state is in-memory and starts fresh each time a lesson is opened.
 
-Current interaction state is local and in-memory. Persistent progress, shared lesson state, expression evaluation, and cross-component bindings are future capabilities and must not be implied by the current schema.
+### 7.7 Variables and live logic (format 0.2.0, feature `variables`)
+
+Lessons can connect interactive blocks to text, equations, plots and diagrams through **variables** and **expressions**. This is declarative logic, not scripting: lessons still cannot run code.
+
+**Declaring variables**
+
+- Input blocks declare variables: `slider` (optional `variable`), `toggle` (`variable`, boolean), `choice` (`variable`, value of the chosen option).
+- `document.variables` declares lesson-level variables. Each one is either a **value** (`{ "name": "count", "initial": 0 }`), which buttons can change, or a **formula** (`{ "name": "range", "expression": "speed^2 * sin(2 * theta) / g" }`), which is recomputed whenever its inputs change. Formulas may refer to each other in any order but not in a loop.
+- Names use letters, digits and `_`, start with a letter, and must not clash with built-in function or constant names. The first declaration of a name wins.
+
+**Using variables**
+
+| Where | How |
+|---|---|
+| Markdown, callout, reveal, flashcard text and math | `{{ expression }}` placeholders, filled before Markdown and KaTeX render |
+| Any block | `showIf`: the block is shown only while the expression is true |
+| `display` | Cards showing `items[].expression` with a label and unit |
+| `plot` | `functions[].expression` in terms of `x` over `xMin`…`xMax`, optional fixed `yMin`/`yMax` |
+| `diagram` | An SVG asset whose elements (by `id`) get an attribute, or `text`, set from `bindings[].expression` |
+| `button` | `actions[]` set value or input variables in order when pressed |
+
+**Expression language**
+
+Numbers, text in quotes, `true`/`false`; `+ - * / % ^`; `== != < <= > >=`; `and or not` (or `&& || !`); `cond ? a : b`; constants `pi`, `e`; functions `sin cos tan asin acos atan atan2 sqrt cbrt abs sign floor ceil round(x, digits) min max pow exp ln log(x, base) hypot clamp lerp deg rad if fixed(x, digits) text`. `+` joins text when either side is text. Numbers are shown with at most 4 decimals.
+
+**Safety**
+
+- Expressions are parsed and evaluated by Curie's own interpreter over a plain map of variable values. They cannot access JavaScript globals, object prototypes, the DOM, storage, or the network.
+- Diagram SVGs are sanitized before display: scripts, `foreignObject`, event-handler attributes, animation elements and external links or `url()` references are removed. Bindings cannot set `on*`, `href`, `src` or `style`.
+- Logic mistakes (unknown variables, syntax errors) are reported in the editor but never stop a lesson from loading; the affected value shows as `?`.
+
+Lessons using any of this list `variables` (and the new block types) in `requiredFeatures`, so older versions of Curie refuse them with a clear message instead of rendering them wrongly.
 
 ---
 

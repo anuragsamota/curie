@@ -1,19 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info, LoaderCircle, X, XCircle } from "lucide-react";
 import { useSound } from "../lib/sound";
 
 type ToastKind = "success" | "error" | "info" | "warning";
 type ToastOptions = { title?: string; duration?: number; action?: { label: string; onClick: () => void } };
-type Toast = ToastOptions & { id: number; kind: ToastKind; message: string; leaving?: boolean; count: number };
+type Toast = ToastOptions & { id: number; kind: ToastKind | "task"; message: string; leaving?: boolean; count: number; progress?: number };
 
-type ToastApi = Record<ToastKind, (message: string, options?: ToastOptions) => void>;
+/** A long-running job shown as a toast with a progress bar until `done` is called. */
+export type TaskHandle = { update: (progress: number, message?: string) => void; done: () => void };
+
+type ToastApi = Record<ToastKind, (message: string, options?: ToastOptions) => void> & {
+  task: (title: string, message: string) => TaskHandle;
+};
 
 const ToastContext = createContext<ToastApi | null>(null);
 const MAX_VISIBLE = 4;
 const DEFAULT_DURATION: Record<ToastKind, number> = { success: 3500, info: 3500, warning: 5000, error: 6000 };
 
-const STYLES: Record<ToastKind, { icon: typeof Info; tone: string; bar: string }> = {
+const STYLES: Record<Toast["kind"], { icon: typeof Info; tone: string; bar: string }> = {
+  task: { icon: LoaderCircle, tone: "text-primary animate-spin", bar: "bg-primary" },
   success: { icon: CheckCircle2, tone: "text-success", bar: "bg-success" },
   info: { icon: Info, tone: "text-primary", bar: "bg-primary" },
   warning: { icon: AlertTriangle, tone: "text-warning", bar: "bg-warning" },
@@ -43,12 +49,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const task = useCallback((title: string, message: string): TaskHandle => {
+    const id = nextId.current++;
+    setToasts((all) => [...all, { id, kind: "task" as const, title, message, count: 1, progress: 0 }].slice(-MAX_VISIBLE));
+    return {
+      update: (progress, next) => setToasts((all) => all.map((toast) => toast.id === id ? { ...toast, progress, message: next ?? toast.message } : toast)),
+      done: () => dismiss(id),
+    };
+  }, [dismiss]);
+
   const api = useMemo<ToastApi>(() => ({
+    task,
     success: (message, options) => push("success", message, options),
     error: (message, options) => push("error", message, options),
     info: (message, options) => push("info", message, options),
     warning: (message, options) => push("warning", message, options),
-  }), [push]);
+  }), [push, task]);
 
   return <ToastContext.Provider value={api}>
     {children}
@@ -60,20 +76,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number) => void }) {
   const [paused, setPaused] = useState(false);
-  const duration = toast.duration ?? DEFAULT_DURATION[toast.kind];
+  const isTask = toast.kind === "task";
+  const duration = toast.duration ?? (isTask ? 0 : DEFAULT_DURATION[toast.kind as ToastKind]);
   const remaining = useRef(duration);
   const startedAt = useRef(Date.now());
   const { icon: Icon, tone, bar } = STYLES[toast.kind];
 
   useEffect(() => {
-    if (paused || toast.leaving) return;
+    if (paused || toast.leaving || isTask) return;
     startedAt.current = Date.now();
     const timer = setTimeout(() => onDismiss(toast.id), remaining.current);
     return () => {
       clearTimeout(timer);
       remaining.current -= Date.now() - startedAt.current;
     };
-  }, [paused, toast.id, toast.leaving, onDismiss]);
+  }, [paused, toast.id, toast.leaving, isTask, onDismiss]);
 
   return <div
     role={toast.kind === "error" ? "alert" : "status"}
@@ -90,9 +107,13 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
         </p>
         {toast.action && <button className="btn btn-xs btn-ghost -ml-2 mt-1 text-primary" onClick={() => { toast.action!.onClick(); onDismiss(toast.id); }}>{toast.action.label}</button>}
       </div>
-      <button className="btn btn-ghost btn-xs btn-square" aria-label="Dismiss notification" onClick={() => onDismiss(toast.id)}><X size={14} /></button>
+      {isTask
+        ? <span className="self-center pr-2 text-xs tabular-nums text-base-content/55">{Math.round((toast.progress ?? 0) * 100)}%</span>
+        : <button className="btn btn-ghost btn-xs btn-square" aria-label="Dismiss notification" onClick={() => onDismiss(toast.id)}><X size={14} /></button>}
     </div>
-    <div className={`toast-timer absolute inset-x-0 bottom-0 h-0.5 opacity-60 ${bar}`} style={{ animationDuration: `${duration}ms` }} />
+    {isTask ? <div className="absolute inset-x-0 bottom-0 h-1 bg-base-300/60">
+      <div className="h-full bg-primary transition-[width] duration-200" style={{ width: `${Math.round((toast.progress ?? 0) * 100)}%` }} />
+    </div> : <div className={`toast-timer absolute inset-x-0 bottom-0 h-0.5 opacity-60 ${bar}`} style={{ animationDuration: `${duration}ms` }} />}
   </div>;
 }
 

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { DEFAULT_SOURCES, type LessonSource } from "./sources";
 import { appFolder, native } from "./storage";
 
 export type Settings = {
@@ -17,6 +18,8 @@ export type Settings = {
   confirmDeletes: boolean;
   /** Pre-filled author for new lessons. */
   defaultAuthor: string;
+  /** GitHub repositories listed on the Explore page. */
+  sources: LessonSource[];
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   librarySort: "recent",
   confirmDeletes: true,
   defaultAuthor: "",
+  sources: DEFAULT_SOURCES,
 };
 
 const STORAGE_KEY = "curie-settings";

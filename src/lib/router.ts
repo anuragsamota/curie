@@ -6,6 +6,7 @@ export type Route =
   | { name: "library" }
   | { name: "lesson"; key: string }
   | { name: "editor"; key: string }
+  | { name: "explore" }
   | { name: "settings" }
   | { name: "notfound" };
 
@@ -13,6 +14,7 @@ export const paths = {
   library: "#/",
   lesson: (key: string) => `#/lesson/${encodeURIComponent(key)}`,
   editor: (key: string) => `#/edit/${encodeURIComponent(key)}`,
+  explore: "#/explore",
   settings: "#/settings",
 };
 
@@ -21,6 +23,7 @@ export function parseRoute(hash: string): Route {
   if (parts.length === 0) return { name: "library" };
   if (parts[0] === "lesson" && parts[1]) return { name: "lesson", key: parts[1] };
   if (parts[0] === "edit" && parts[1]) return { name: "editor", key: parts[1] };
+  if (parts[0] === "explore") return { name: "explore" };
   if (parts[0] === "settings") return { name: "settings" };
   return { name: "notfound" };
 }

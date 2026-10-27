@@ -1,15 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { exportCurie, loadCurie } from "../curie/package";
+import { exportCurieInBackground, loadCurieInBackground } from "../curie/background";
+import type { ProgressFn } from "../curie/package";
 import type { CurieManifest } from "../curie/types";
 import { useToast } from "../ui/Toasts";
+import { coverThumbnail } from "./cover";
 import { downloadBlob, randomId, slugify } from "./lesson";
+import { downloadLesson, type RemoteLesson } from "./sources";
 import {
   createBackend, native, readNativeFile, summarize, writeNativeFile,
-  type LessonContent, type LessonSummary, type LibraryBackend,
+  type LessonContent, type LessonOrigin, type LessonSummary, type LibraryBackend,
 } from "./storage";
-/** Every packaged example lesson in examples/, bundled as a URL. */
-const EXAMPLE_URLS = import.meta.glob<string>("../../examples/*.curie", { query: "?url", import: "default", eager: true });
 
 type NewLesson = { title: string; description?: string; author?: string };
 type LearnerState = Partial<Pick<LessonSummary, "openedAt" | "progress" | "completedAt">>;
@@ -32,8 +33,10 @@ type LibraryValue = {
   importPaths: (paths: string[]) => Promise<LessonSummary[]>;
   /** Native: points a missing lesson at its new location. */
   relocate: (key: string, path: string) => Promise<void>;
-  /** Adds every bundled example lesson; resolves to the ones added. */
-  addExamples: () => Promise<LessonSummary[]>;
+  /** Downloads a lesson from a lesson source, or updates the copy already in the library. */
+  download: (remote: RemoteLesson) => Promise<LessonSummary | undefined>;
+  /** The library's copy of a lesson from a source, if it was downloaded. */
+  downloaded: (remote: Pick<RemoteLesson, "source" | "path">) => LessonSummary | undefined;
   save: (key: string, content: LessonContent) => Promise<void>;
   /** Updates learner state (progress, last opened) without changing `updatedAt`. */
   touch: (key: string, patch: LearnerState) => void;
@@ -51,6 +54,14 @@ function newKey() {
 }
 
 const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+
+/** Adds the cover thumbnail shown on library cards. */
+async function withCover(summary: LessonSummary, content: LessonContent): Promise<LessonSummary> {
+  const image = content.manifest.cover ? content.assets[content.manifest.cover] : undefined;
+  return { ...summary, cover: image ? await coverThumbnail(image) : undefined };
+}
+
+type AddOptions = { path?: string; packed?: Blob; origin?: LessonOrigin };
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [lessons, setLessons] = useState<LessonSummary[]>([]);
@@ -92,9 +103,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setLessons((all) => all.some((item) => item.key === summary.key) ? all.map((item) => item.key === summary.key ? summary : item) : [...all, summary]);
 
   /** Writes contents and records them in the library. */
-  const store = useCallback(async (summary: LessonSummary, content: LessonContent) => {
+  const store = useCallback(async (summary: LessonSummary, content: LessonContent, packed?: Blob) => {
     try {
-      const stored = await need().write(summary, content);
+      const stored = await need().write(await withCover(summary, content), content, packed);
       cache.current.set(stored.key, content);
       upsert(stored);
       return stored;
@@ -131,16 +142,33 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return store({ key: newKey(), ...summarize(content), createdAt: now, updatedAt: now }, content);
   }, [store]);
 
-  const addContent = useCallback((content: LessonContent, path?: string) => {
+  const addContent = useCallback((content: LessonContent, { path, packed, origin }: AddOptions = {}) => {
     const now = Date.now();
-    return store({ key: newKey(), ...summarize(content), createdAt: now, updatedAt: now, path, managed: path ? false : undefined }, content);
+    return store({ key: newKey(), ...summarize(content), createdAt: now, updatedAt: now, path, managed: path ? false : undefined, origin }, content, packed);
   }, [store]);
+
+  /**
+   * Reads, unpacks and stores one lesson while a progress notification is shown. Unpacking runs in
+   * a worker, so the app stays responsive with large lessons.
+   */
+  const ingest = useCallback(async (title: string, reading: string, read: (onProgress: ProgressFn) => Promise<File>, place: (content: LessonContent, file: File) => Promise<LessonSummary>) => {
+    const task = toast.task(title, reading);
+    try {
+      const file = await read((fraction) => task.update(fraction * 0.4));
+      task.update(0.4, "Unpacking lesson…");
+      const content = await loadCurieInBackground(file, (fraction) => task.update(0.4 + fraction * 0.5));
+      task.update(0.9, "Saving to your library…");
+      return await place(content, file);
+    } finally {
+      task.done();
+    }
+  }, [toast]);
 
   const importFiles = useCallback(async (files: Iterable<File>) => {
     const imported: LessonSummary[] = [];
     for (const file of files) {
       try {
-        const record = await addContent(await loadCurie(file));
+        const record = await ingest(`Importing ${file.name}`, "Reading file…", async () => file, (content) => addContent(content, { packed: file }));
         imported.push(record);
         toast.success(`“${record.manifest.title}” was added to your library.`, { title: "Lesson imported" });
       } catch (error) {
@@ -148,7 +176,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
     }
     return imported;
-  }, [addContent, toast]);
+  }, [addContent, ingest, toast]);
 
   const importPaths = useCallback(async (paths: string[]) => {
     const imported: LessonSummary[] = [];
@@ -160,9 +188,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         continue;
       }
       try {
-        const content = await loadCurie(await readNativeFile(path));
-        // Android content:// URIs don't stay readable after restart, so those are copied into Curie's folder.
-        const record = await addContent(content, path.startsWith("content://") ? undefined : path);
+        const name = path.startsWith("content://") ? "lesson" : path.split(/[\\/]/).pop();
+        const record = await ingest(`Importing ${name}`, "Reading file…", (onProgress) => readNativeFile(path, onProgress), (content, file) =>
+          // Android content:// URIs don't stay readable after restart, so those are copied into Curie's folder.
+          path.startsWith("content://") ? addContent(content, { packed: file }) : addContent(content, { path }));
         imported.push(record);
         toast.success(`“${record.manifest.title}” was added to your library.`, { title: "Lesson imported" });
       } catch (error) {
@@ -170,14 +199,14 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
     }
     return imported;
-  }, [addContent, toast]);
+  }, [addContent, ingest, toast]);
 
   const relocate = useCallback(async (key: string, path: string) => {
     const summary = lessonsRef.current.find((lesson) => lesson.key === key);
     if (!summary) return;
     try {
-      const content = await loadCurie(await readNativeFile(path));
-      const moved: LessonSummary = { ...summary, ...summarize(content), path, missing: undefined };
+      const content = await loadCurieInBackground(await readNativeFile(path));
+      const moved = await withCover({ ...summary, ...summarize(content), path, missing: undefined }, content);
       await need().update(moved);
       cache.current.set(key, content);
       upsert(moved);
@@ -187,19 +216,27 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
-  const addExamples = useCallback(async () => {
-    const added: LessonSummary[] = [];
-    for (const [path, url] of Object.entries(EXAMPLE_URLS)) {
-      try {
-        const response = await fetch(url);
-        added.push(await addContent(await loadCurie(new File([await response.blob()], path.split("/").pop()!))));
-      } catch (error) {
-        toast.error(message(error, "Could not load an example lesson."));
-      }
+  const downloaded = useCallback((remote: Pick<RemoteLesson, "source" | "path">) =>
+    lessons.find((lesson) => lesson.origin?.source === remote.source && lesson.origin.path === remote.path), [lessons]);
+
+  const download = useCallback(async (remote: RemoteLesson) => {
+    const origin: LessonOrigin = { source: remote.source, path: remote.path, sha: remote.sha };
+    const existing = lessonsRef.current.find((lesson) => lesson.origin?.source === remote.source && lesson.origin.path === remote.path);
+    try {
+      const record = await ingest(`Downloading “${remote.title}”`, "Downloading…", (onProgress) => downloadLesson(remote, onProgress), (content, file) => {
+        cache.current.delete(existing?.key ?? "");
+        // An update replaces the contents but keeps the learner's progress.
+        return existing
+          ? store({ ...existing, ...summarize(content), updatedAt: Date.now(), origin }, content, file)
+          : addContent(content, { packed: file, origin });
+      });
+      toast.success(`“${record.manifest.title}” ${existing ? "was updated" : "was added to your library"}.`, { title: existing ? "Lesson updated" : "Lesson downloaded" });
+      return record;
+    } catch (error) {
+      toast.error(message(error, "Could not download this lesson."), { title: `Couldn't download “${remote.title}”` });
+      return undefined;
     }
-    if (added.length) toast.success(`${added.length} example ${added.length === 1 ? "lesson was" : "lessons were"} added to your library.`);
-    return added;
-  }, [addContent, toast]);
+  }, [addContent, ingest, store, toast]);
 
   const save = useCallback(async (key: string, content: LessonContent) => {
     const summary = lessonsRef.current.find((lesson) => lesson.key === key);
@@ -258,7 +295,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const exportLesson = useCallback(async (key: string, provided?: LessonContent) => {
     try {
       const content = provided ?? await load(key);
-      const blob = await exportCurie(content.manifest, content.document, content.assets);
+      const task = toast.task("Exporting lesson", "Packing files…");
+      const blob = await exportCurieInBackground(content, (fraction) => task.update(fraction)).finally(task.done);
       const filename = `${slugify(content.manifest.title)}.curie`;
       if (native) {
         const { save: saveDialog } = await import("@tauri-apps/plugin-dialog");
@@ -277,8 +315,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LibraryValue>(() => ({
     lessons, ready, native, location: backend?.location ?? "", get, load, create, importFiles, importPaths, relocate,
-    addExamples, save, touch, duplicate, remove, restore, clear, exportLesson,
-  }), [lessons, ready, backend, get, load, create, importFiles, importPaths, relocate, addExamples, save, touch, duplicate, remove, restore, clear, exportLesson]);
+    download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson,
+  }), [lessons, ready, backend, get, load, create, importFiles, importPaths, relocate, download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }

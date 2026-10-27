@@ -6,6 +6,7 @@ import {
   PanelLeft, PanelRight, PenLine, Plus, Redo2, SlidersHorizontal, Trash2, Undo2, X,
 } from "lucide-react";
 import BlockRenderer from "../components/BlockRenderer";
+import { LessonVariables } from "../components/variables";
 import { MAX_ASSET_BYTES, detectFeatures, findLessonIssues, type AssetMap, type Issue } from "../curie/package";
 import type { CurieDocument, CurieManifest, CurieNode } from "../curie/types";
 import { AssetsPanel } from "../editor/AssetsPanel";
@@ -25,6 +26,7 @@ import { native, type LessonContent, type LessonSummary } from "../lib/storage";
 import { isMod, useShortcut } from "../ui/AppActions";
 import { useConfirm } from "../ui/Confirm";
 import { useLessonMenu } from "../ui/LessonActions";
+import { CoverBanner } from "../ui/LessonCover";
 import { LogoMark } from "../ui/Logo";
 import { Menu } from "../ui/Menu";
 import { useToast } from "../ui/Toasts";
@@ -238,7 +240,7 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
   }, [set, toast]);
 
   const removeAsset = async (path: string) => {
-    const count = usage.get(path) ?? 0;
+    const count = (usage.get(path) ?? 0) + (draftRef.current.manifest.cover === path ? 1 : 0);
     if (count && !(await confirm({ title: "Delete this file?", message: `${count} ${count === 1 ? "block uses" : "blocks use"} ${path}. Those blocks will show a missing-file warning.`, confirmLabel: "Delete file", danger: true }))) return;
     set((current) => {
       const assets = { ...current.assets };
@@ -330,8 +332,9 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
   </div>;
 
   const inspectorPanel = selectedNode
-    ? <BlockInspector key={selectedNode.id} node={selectedNode} issues={blockIssues(selectedNode.id)} onChange={(node) => changeBlock(selectedNode.id, node)} onRemove={() => deleteBlock(selectedNode.id)} assets={draft.assets} onUpload={upload} />
-    : <LessonInspector manifest={draft.manifest} document={draft.document} assets={draft.assets} onChange={setManifest} />;
+    ? <BlockInspector key={selectedNode.id} node={selectedNode} issues={blockIssues(selectedNode.id)} onChange={(node) => changeBlock(selectedNode.id, node)} onRemove={() => deleteBlock(selectedNode.id)} assets={draft.assets} onUpload={upload} document={draft.document} />
+    : <LessonInspector manifest={draft.manifest} document={draft.document} assets={draft.assets} onChange={setManifest} onUpload={upload}
+      onVariablesChange={(variables) => set((current) => ({ ...current, document: { ...current.document, variables: variables.length ? variables : undefined } }), "variables")} />;
 
   const latestRecord = library.get(record.key) ?? record;
   const menuItems = lessonMenu(latestRecord, "editor").map((item) => item !== "divider" && item.label === "Export .curie" ? { ...item, onSelect: () => void exportNow() } : item);
@@ -373,9 +376,11 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
 
       <main className="min-w-0 flex-1 overflow-y-auto scroll-thin bg-base-200/60" onClick={() => !preview && setSelected(undefined)}>
         <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${preview ? "py-8 sm:py-12" : "py-6 sm:py-10"}`}>
+          <LessonVariables document={draft.document}>
           <div className={`rounded-[2rem] border border-base-300 bg-base-100 px-5 py-8 shadow-sm transition-all sm:px-10 sm:py-12 ${preview ? "" : "pb-10"}`}>
             <header className={`mb-10 rounded-2xl ${preview ? "" : `-m-3 cursor-pointer p-3 transition-shadow ${!selected ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-base-content/15"}`}`}
               onClick={(event) => { if (preview) return; event.stopPropagation(); setSelected(undefined); if (!desktop) setDrawer("right"); }}>
+              <CoverBanner image={draft.manifest.cover ? draft.assets[draft.manifest.cover] : undefined} className="mb-8" />
               <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">{draft.manifest.title || <span className="text-base-content/30">Untitled lesson</span>}</h1>
               {draft.manifest.description && <p className="mt-4 text-lg leading-8 text-base-content/65">{draft.manifest.description}</p>}
               {draft.manifest.author && <p className="mt-4 text-sm font-medium text-base-content/60">By {draft.manifest.author}</p>}
@@ -398,6 +403,7 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
                 <button className="btn btn-ghost border-dashed border-base-300 press" onClick={toggle}><Plus size={16} /> Add block</button>} />
             </div>}
           </div>
+          </LessonVariables>
           {preview && <p className="mt-4 text-center text-xs text-base-content/45">Preview: this is what learners see. Press Ctrl+P to go back to editing.</p>}
         </div>
       </main>

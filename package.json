@@ -11,8 +11,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "typecheck": "tsc -b --pretty",
-    "test": "vitest run",
-    "pack:example": "node scripts/pack-example.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",

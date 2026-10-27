@@ -6,4 +6,5 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
   server: { strictPort: true },
+  worker: { format: "es" },
 });

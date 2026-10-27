@@ -11,6 +11,10 @@ export function blockText(node: CurieNode): string {
     case "graph": return node.title ?? "";
     case "slider": return node.label;
     case "section": return node.title ?? "";
+    case "toggle": case "choice": return node.label;
+    case "button": return node.label;
+    case "display": return [node.title ?? "", ...node.items.map((item) => item.label)].join(" ");
+    case "plot": case "diagram": return `${node.title ?? ""} ${"caption" in node ? node.caption ?? "" : ""}`;
     case "divider": return "";
   }
 }
@@ -19,7 +23,7 @@ export function flattenBlocks(nodes: CurieNode[]): CurieNode[] {
   return nodes.flatMap((node) => node.type === "section" ? [node, ...flattenBlocks(node.children)] : [node]);
 }
 
-const INTERACTIVE = new Set(["quiz", "slider", "flashcard", "reveal", "video", "lottie", "graph"]);
+const INTERACTIVE = new Set(["quiz", "slider", "flashcard", "reveal", "video", "lottie", "graph", "toggle", "choice", "button", "plot", "diagram"]);
 
 export function readingMinutes(document: CurieDocument): number {
   const blocks = flattenBlocks(document.blocks);

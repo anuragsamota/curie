@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { ZodError, ZodType, ZodTypeDef } from "zod";
 import { isExternalSource, isPackageAssetPath, isSafePackagePath, mimeForPath } from "./assets";
+import { findLogicIssues, usesVariables } from "./logic";
 import {
   CurieDocumentSchema, CurieManifestSchema, SUPPORTED_FEATURES,
   type CurieDocument, type CurieManifest, type CurieNode,
@@ -107,7 +108,9 @@ export function findDocumentIssues(document: CurieDocument, hasAsset?: (path: st
       if (ids.has(node.id)) report(`document.json uses the block id "${node.id}" more than once.`);
       ids.add(node.id);
       // An empty src is reported by the schema ("Choose a file or enter a URL").
-      if ("src" in node && node.src && !isExternalSource(node.src)) {
+      if (node.type === "diagram" && node.src && !(isPackageAssetPath(node.src) && node.src.toLowerCase().endsWith(".svg"))) {
+        report(`Diagram "${node.id}" needs an SVG file inside the lesson.`);
+      } else if ("src" in node && node.src && !isExternalSource(node.src)) {
         if (!isPackageAssetPath(node.src)) report(`Block "${node.id}" has an unsupported or unsafe source: "${node.src}". Use a path inside assets/ or an https:// URL.`);
         else if (!hasAsset?.(node.src)) report(`Block "${node.id}" refers to a missing asset: "${node.src}". Asset paths are case-sensitive.`);
       }
@@ -136,6 +139,7 @@ export function findLessonIssues(manifest: CurieManifest, document: CurieDocumen
   const issues: Issue[] = [];
   const manifestResult = CurieManifestSchema.safeParse(manifest);
   if (!manifestResult.success) issues.push({ message: describeZodError("manifest.json", manifestResult.error) });
+  if (manifest.cover && !(manifest.cover in assets)) issues.push({ message: `The cover image "${manifest.cover}" is missing. Choose another cover.` });
   const documentResult = CurieDocumentSchema.safeParse(document);
   if (!documentResult.success) {
     for (const issue of documentResult.error.issues) {
@@ -145,6 +149,8 @@ export function findLessonIssues(manifest: CurieManifest, document: CurieDocumen
     }
   }
   issues.push(...findDocumentIssues(document, (path) => path in assets));
+  // Logic mistakes only show "?" in the lesson, so they're reported in the editor but don't block loading.
+  if (documentResult.success) issues.push(...findLogicIssues(document));
   return issues;
 }
 
@@ -160,10 +166,14 @@ export function detectFeatures(document: CurieDocument): string[] {
     }
   };
   visit(document.blocks);
+  if (usesVariables(document)) features.add("variables");
   return (SUPPORTED_FEATURES as readonly string[]).filter((feature) => features.has(feature));
 }
 
-export async function loadCurie(file: File): Promise<LoadedCurie> {
+/** Reports work done as a fraction from 0 to 1. */
+export type ProgressFn = (fraction: number) => void;
+
+export async function loadCurie(file: File, onProgress?: ProgressFn): Promise<LoadedCurie> {
   if (!file.name.toLowerCase().endsWith(".curie")) throw new Error("Choose a .curie lesson package.");
   if (file.size > MAX_PACKAGE_BYTES) throw new Error(`This lesson is larger than the ${MAX_PACKAGE_BYTES / MB} MB limit.`);
 
@@ -187,6 +197,7 @@ export async function loadCurie(file: File): Promise<LoadedCurie> {
   // Extract under canonical paths so lookups and export never see wrapper folders or `./` prefixes.
   const files = new Map<string, Uint8Array<ArrayBuffer>>();
   let extracted = 0;
+  let done = 0;
   for (const [path, entry] of normalized) {
     let bytes: Uint8Array<ArrayBuffer>;
     try {
@@ -197,6 +208,7 @@ export async function loadCurie(file: File): Promise<LoadedCurie> {
     extracted += bytes.byteLength;
     if (extracted > MAX_EXTRACTED_BYTES) throw new Error(`This lesson expands to more than ${MAX_EXTRACTED_BYTES / MB} MB.`);
     files.set(path, bytes);
+    onProgress?.(declaredTotal ? Math.min(1, extracted / declaredTotal) : ++done / normalized.size);
   }
 
   const decoder = new TextDecoder();
@@ -208,10 +220,12 @@ export async function loadCurie(file: File): Promise<LoadedCurie> {
     if (path !== "manifest.json" && path !== "document.json") assets[path] = new Blob([bytes], { type: mimeForPath(path) });
   }
   validateDocument(document, (path) => path in assets);
+  // A missing cover is not worth rejecting the lesson over; it falls back to generated art.
+  if (manifest.cover && !(manifest.cover in assets)) delete manifest.cover;
   return { manifest, document, assets };
 }
 
-export async function exportCurie(manifest: CurieManifest, document: CurieDocument, assets: AssetMap = {}): Promise<Blob> {
+export async function exportCurie(manifest: CurieManifest, document: CurieDocument, assets: AssetMap = {}, onProgress?: ProgressFn): Promise<Blob> {
   const zip = new JSZip();
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
   zip.file("document.json", JSON.stringify(document, null, 2));
@@ -220,5 +234,5 @@ export async function exportCurie(manifest: CurieManifest, document: CurieDocume
       zip.file(path, new Uint8Array(await blob.arrayBuffer()), { createFolders: false });
     }
   }
-  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }, onProgress && ((meta) => onProgress(meta.percent / 100)));
 }
