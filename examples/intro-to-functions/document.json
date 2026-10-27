@@ -4,92 +4,162 @@
     {
       "id": "welcome",
       "type": "markdown",
-      "content": "# A first look at functions\n\nA function maps each input to exactly one output.\n\n## Mathematical notation\n\n$$f(x) = 2x + 1$$\n\nScientific notation also works: \\(\\rho = \\frac{m}{V}\\), where density is mass divided by volume."
+      "content": "A **function** is a rule that maps each input to exactly one output. Think of it as a small machine: put a value in, apply the rule, and get a result out.\n\n> **Learning goal:** connect a formula, a table of values, and a graph."
     },
     {
-      "id": "line-chart",
-      "type": "graph",
-      "title": "Input and output",
-      "kind": "line",
-      "xLabel": "Input x",
-      "yLabel": "Output f(x)",
-      "data": [
+      "id": "machine",
+      "type": "image",
+      "src": "assets/example.svg",
+      "alt": "A function machine: the input 3 goes through the rule times two plus one and comes out as 7.",
+      "caption": "The input 3 goes in, the rule is applied, and 7 comes out."
+    },
+    {
+      "id": "formula-section",
+      "type": "section",
+      "title": "From formula to graph",
+      "children": [
         {
-          "x": -2,
-          "y": -3
+          "id": "formula",
+          "type": "markdown",
+          "content": "Consider the function\n\n$$\nf(x) = 2x + 1\n$$\n\nFor every input $x$, multiply by two and add one. For example, $f(3) = 2(3) + 1 = 7$."
         },
         {
-          "x": -1,
-          "y": -1
+          "id": "line-chart",
+          "type": "graph",
+          "title": "Inputs and outputs of f(x) = 2x + 1",
+          "kind": "line",
+          "xLabel": "Input x",
+          "yLabel": "Output f(x)",
+          "data": [
+            {
+              "x": -2,
+              "y": -3
+            },
+            {
+              "x": -1,
+              "y": -1
+            },
+            {
+              "x": 0,
+              "y": 1
+            },
+            {
+              "x": 1,
+              "y": 3
+            },
+            {
+              "x": 2,
+              "y": 5
+            },
+            {
+              "x": 3,
+              "y": 7
+            }
+          ]
         },
         {
-          "x": 0,
-          "y": 1
+          "id": "notice",
+          "type": "callout",
+          "variant": "info",
+          "title": "What to notice",
+          "content": "Each time the input grows by 1, the output grows by **2**. A constant rate of change is why the graph is a straight line."
         },
         {
-          "x": 1,
-          "y": 3
+          "id": "quiz-f4",
+          "type": "quiz",
+          "question": "If f(x) = 2x + 1, what is f(4)?",
+          "options": [
+            "7",
+            "8",
+            "9",
+            "10"
+          ],
+          "correctIndex": 2,
+          "explanation": "Substitute x = 4: f(4) = 2 × 4 + 1 = 9."
         },
         {
-          "x": 2,
-          "y": 5
+          "id": "slope-hint",
+          "type": "reveal",
+          "title": "Reveal: what do m and b mean?",
+          "content": "In a linear function $f(x) = mx + b$, the number $m$ is the **slope** (how steep the line is) and $b$ is the **y-intercept** (where the line crosses the y-axis)."
         }
       ]
     },
     {
-      "id": "portable-image",
-      "type": "image",
-      "src": "assets/example.svg",
-      "alt": "Illustration placeholder for a function machine",
-      "caption": "Example of an asset stored inside the lesson package."
+      "id": "break",
+      "type": "divider"
     },
     {
-      "id": "orbit-animation",
-      "type": "lottie",
-      "src": "assets/orbit-animation.json",
-      "title": "A tiny animated orbit",
-      "caption": "A local Lottie JSON animation packaged with the lesson."
+      "id": "science-section",
+      "type": "section",
+      "title": "Functions in science",
+      "children": [
+        {
+          "id": "density",
+          "type": "markdown",
+          "content": "Scientists use functions all the time. Density relates mass and volume:\n\n$$\n\\rho = \\frac{m}{V}\n$$\n\nFor a fixed volume, density is a function of mass."
+        },
+        {
+          "id": "mass-slider",
+          "type": "slider",
+          "label": "Adjust the mass",
+          "min": 0,
+          "max": 100,
+          "step": 5,
+          "initial": 50,
+          "unit": "kg"
+        },
+        {
+          "id": "density-tip",
+          "type": "callout",
+          "variant": "tip",
+          "title": "Try it",
+          "content": "Double the mass while the volume stays the same. What happens to the density?"
+        },
+        {
+          "id": "quiz-density",
+          "type": "quiz",
+          "question": "Which expression represents density?",
+          "options": [
+            "mass × volume",
+            "mass ÷ volume",
+            "volume ÷ mass"
+          ],
+          "correctIndex": 1,
+          "explanation": "Density is mass per unit volume."
+        },
+        {
+          "id": "orbit-animation",
+          "type": "lottie",
+          "src": "assets/orbit-animation.json",
+          "title": "Things in motion",
+          "caption": "Position over time is a function too."
+        },
+        {
+          "id": "video",
+          "type": "video",
+          "src": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+          "title": "Growth over time",
+          "caption": "A remote video block. Needs an internet connection."
+        }
+      ]
     },
     {
-      "id": "density-tip",
-      "type": "callout",
-      "variant": "tip",
-      "title": "Science tip",
-      "content": "Density is mass divided by volume: $$\\\\rho = \\\\frac{m}{V}$$."
+      "id": "recall",
+      "type": "markdown",
+      "content": "## Check your memory"
     },
     {
-      "id": "quiz-density",
-      "type": "quiz",
-      "question": "Which expression represents density?",
-      "options": [
-        "mass × volume",
-        "mass ÷ volume",
-        "volume ÷ mass"
-      ],
-      "correctIndex": 1,
-      "explanation": "Density is mass per unit volume."
-    },
-    {
-      "id": "slider-demo",
-      "type": "slider",
-      "label": "Adjust the mass",
-      "min": 0,
-      "max": 100,
-      "step": 5,
-      "initial": 50,
-      "unit": "kg"
-    },
-    {
-      "id": "reveal-hint",
-      "type": "reveal",
-      "title": "Reveal a hint",
-      "content": "Think about how many units of mass fit into each unit of volume."
-    },
-    {
-      "id": "flashcard-density",
+      "id": "flashcard-function",
       "type": "flashcard",
-      "front": "What is density?",
-      "back": "Mass per unit volume."
+      "front": "What makes a rule a function?",
+      "back": "Every input has exactly one output."
+    },
+    {
+      "id": "flashcard-slope",
+      "type": "flashcard",
+      "front": "What does the slope of a straight-line graph describe?",
+      "back": "How much y changes for each unit change in x."
     }
   ]
 }

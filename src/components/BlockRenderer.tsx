@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Component, createContext, useContext, useEffect, useMemo, useState } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -8,201 +9,322 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { AlertTriangle, Check, ChevronDown, CircleCheck, Info, Lightbulb, RotateCcw, Sparkles, X } from "lucide-react";
+import { isExternalSource, isPackageAssetPath } from "../curie/assets";
+import type { AssetMap } from "../curie/package";
 import type { CurieNode } from "../curie/types";
-import type JSZip from "jszip";
+import { useSettings } from "../lib/settings";
+import { useSound } from "../lib/sound";
 
-type Props = { node: CurieNode; zip?: JSZip; onError: (message: string) => void };
+/** Lesson-level hooks for interactive blocks; optional so blocks also render in the editor. */
+export type LessonRuntime = { onQuizAnswered?: (id: string, correct: boolean) => void };
+const RuntimeContext = createContext<LessonRuntime>({});
+export const LessonRuntimeProvider = RuntimeContext.Provider;
+
+type Props = {
+  node: CurieNode;
+  assets?: AssetMap;
+  onError: (message: string) => void;
+  /** Wraps every block (including nested ones), e.g. to make blocks selectable in the editor. */
+  frame?: (node: CurieNode, content: ReactNode) => ReactNode;
+};
 
 function MarkdownBlock({ content }: { content: string }) {
-  return <div className="prose prose-slate max-w-none dark:prose-invert curie-prose">
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{content}</ReactMarkdown>
+  return <div className="prose max-w-none curie-prose">
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}
+      components={{ a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" /> }}
+    >{content}</ReactMarkdown>
   </div>;
 }
 
-function mimeForPath(path: string): string {
-  const ext = path.split("?")[0].split(".").pop()?.toLowerCase();
-  const types: Record<string, string> = {
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
-    avif: "image/avif", svg: "image/svg+xml", bmp: "image/bmp", ico: "image/x-icon",
-    mp4: "video/mp4", webm: "video/webm", ogv: "video/ogg", mov: "video/quicktime",
-    json: "application/json", lottie: "application/json",
-  };
-  return types[ext || ""] || "application/octet-stream";
-}
+type AssetState = { url?: string; failed: boolean };
 
-function useAsset(src: string, zip?: JSZip, onError?: (message: string) => void) {
-  const [resolved, setResolved] = useState<string>();
+function useAsset(src: string, assets?: AssetMap, onError?: (message: string) => void): AssetState {
+  const [state, setState] = useState<AssetState>({ failed: false });
+  const blob = assets?.[src];
   useEffect(() => {
-    let objectUrl: string | undefined;
-    let active = true;
-    setResolved(undefined);
-
-    async function resolve() {
-      if (/^https?:\/\//i.test(src) || src.startsWith("data:") || src.startsWith("blob:")) {
-        if (active) setResolved(src);
-        return;
-      }
-      if (!zip || !src.startsWith("assets/") || src.split("/").includes("..")) {
-        onError?.(`Asset path is not available: ${src}`);
-        return;
-      }
-      const entry = zip.file(src);
-      if (!entry) {
-        onError?.(`Missing asset in lesson package: ${src}`);
-        return;
-      }
-      const bytes = await entry.async("uint8array");
-      const blob = new Blob([bytes], { type: mimeForPath(src) });
-      objectUrl = URL.createObjectURL(blob);
-      if (active) setResolved(objectUrl);
+    if (!src) {
+      setState({ failed: true });
+      return;
     }
-    void resolve().catch((error: unknown) => onError?.(error instanceof Error ? error.message : `Could not load asset: ${src}`));
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [src, zip, onError]);
-  return resolved;
+    if (isExternalSource(src)) {
+      setState({ url: src, failed: false });
+      return;
+    }
+    if (!isPackageAssetPath(src) || !blob) {
+      setState({ failed: true });
+      onError?.(!isPackageAssetPath(src) ? `Asset path is not available: ${src}` : `Missing asset in lesson package: ${src}`);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setState({ url, failed: false });
+    return () => URL.revokeObjectURL(url);
+  }, [src, blob, onError]);
+  return state;
 }
 
-function ImageBlock({ node, zip, onError }: { node: Extract<CurieNode, {type:"image"}>; zip?: JSZip; onError: Props["onError"] }) {
-  const src = useAsset(node.src, zip, onError);
+function MediaFallback({ label, src, className = "min-h-44" }: { label: string; src?: string; className?: string }) {
+  return <div role="note" className={`flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-base-300 bg-base-200/50 p-6 text-center text-sm text-base-content/60 ${className}`}>
+    <AlertTriangle size={22} className="text-warning" aria-hidden="true" /><span className="font-medium">{label}</span>{src && <span className="break-all font-mono text-xs opacity-70">{src}</span>}
+  </div>;
+}
+
+function Caption({ children }: { children?: string }) {
+  return children ? <figcaption className="mt-3 text-center text-sm text-base-content/60">{children}</figcaption> : null;
+}
+
+function ImageBlock({ node, assets, onError }: { node: Extract<CurieNode, { type: "image" }>; assets?: AssetMap; onError: Props["onError"] }) {
+  const asset = useAsset(node.src, assets, onError);
   const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  return <figure className="my-6">
-    {src && !failed ? <img src={src} alt={node.alt} className="mx-auto max-h-[34rem] w-auto max-w-full rounded-2xl object-contain" loading="lazy" onError={() => { setFailed(true); onError(`Image could not be displayed: ${node.src}`); }} />
-      : <div className="flex min-h-44 flex-col items-center justify-center gap-2 rounded-2xl border border-base-300 bg-base-200/50 p-6 text-center text-sm text-base-content/60"><span className="text-3xl">▧</span><span>{failed ? "Image failed to load" : "Loading image…"}</span><span className="break-all text-xs">{node.src}</span></div>}
-    {node.caption && <figcaption className="mt-3 text-center text-sm text-base-content/60">{node.caption}</figcaption>}
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setFailed(false); setLoaded(false); }, [asset.url]);
+  return <figure className="my-2">
+    {failed || asset.failed ? <MediaFallback label={node.src ? "Image failed to load" : "No image chosen yet"} src={node.src} />
+      : asset.url ? <img src={asset.url} alt={node.alt} loading="lazy"
+        className={`mx-auto max-h-[34rem] w-auto max-w-full rounded-2xl object-contain transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+        onLoad={() => setLoaded(true)} onError={() => { setFailed(true); onError(`Image could not be displayed: ${node.src}`); }} />
+      : <div className="skeleton h-56 w-full rounded-2xl" />}
+    <Caption>{node.caption}</Caption>
   </figure>;
 }
 
-function VideoBlock({ node, zip, onError }: { node: Extract<CurieNode, {type:"video"}>; zip?: JSZip; onError: Props["onError"] }) {
-  const src = useAsset(node.src, zip, onError);
-  return <figure className="my-7">
-    {node.title && <h3 className="mb-3 text-lg font-semibold">{node.title}</h3>}
-    {src ? <video className="w-full rounded-2xl bg-black shadow-sm" controls preload="metadata" src={src}>Your browser does not support embedded video.</video> : <div className="skeleton aspect-video w-full rounded-2xl" />}
-    {node.caption && <figcaption className="mt-3 text-center text-sm text-base-content/60">{node.caption}</figcaption>}
+function VideoBlock({ node, assets, onError }: { node: Extract<CurieNode, { type: "video" }>; assets?: AssetMap; onError: Props["onError"] }) {
+  const asset = useAsset(node.src, assets, onError);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [asset.url]);
+  return <figure className="my-2">
+    {node.title && <h3 className="font-display mb-3 text-lg font-semibold">{node.title}</h3>}
+    {failed || asset.failed ? <MediaFallback label={node.src ? "Video could not be played" : "No video chosen yet"} src={node.src} className="aspect-video" />
+      : asset.url ? <video className="w-full rounded-2xl bg-black shadow-sm" controls preload="metadata" src={asset.url} aria-label={node.title} onError={() => { setFailed(true); onError(`Video could not be played: ${node.src}`); }}>Your browser does not support embedded video.</video>
+      : <div className="skeleton aspect-video w-full rounded-2xl" />}
+    <Caption>{node.caption}</Caption>
   </figure>;
 }
 
-function LottieBlock({ node, zip, onError }: { node: Extract<CurieNode, {type:"lottie"}>; zip?: JSZip; onError: Props["onError"] }) {
-  const src = useAsset(node.src, zip, onError);
+function LottieBlock({ node, assets, onError }: { node: Extract<CurieNode, { type: "lottie" }>; assets?: AssetMap; onError: Props["onError"] }) {
+  const { url: src, failed } = useAsset(node.src, assets, onError);
+  const { reducedMotion } = useSettings();
   const [animationData, setAnimationData] = useState<unknown>();
+  const [parseFailed, setParseFailed] = useState(false);
   useEffect(() => {
     let active = true;
     setAnimationData(undefined);
+    setParseFailed(false);
     if (!src) return;
     fetch(src).then((response) => {
       if (!response.ok) throw new Error(`Lottie fetch failed (${response.status})`);
       return response.json();
     }).then((data: unknown) => { if (active) setAnimationData(data); })
-      .catch((error: unknown) => onError(error instanceof Error ? error.message : "Could not load Lottie animation."));
+      .catch((error: unknown) => {
+        if (!active) return;
+        setParseFailed(true);
+        onError(error instanceof Error ? error.message : "Could not load Lottie animation.");
+      });
     return () => { active = false; };
   }, [src, onError]);
-  return <figure className="my-7 rounded-2xl border border-base-300 bg-base-200/30 p-4 sm:p-6">
-    {node.title && <h3 className="mb-3 text-center text-lg font-semibold">{node.title}</h3>}
-    {animationData ? <div className="mx-auto max-h-80 max-w-md"><Lottie animationData={animationData} loop={node.loop ?? true} autoplay={node.autoplay ?? true} /></div>
+  return <figure className="my-2 rounded-3xl border border-base-300 bg-base-200/40 p-4 sm:p-6">
+    {node.title && <h3 className="font-display mb-3 text-center text-lg font-semibold">{node.title}</h3>}
+    {failed || parseFailed ? <MediaFallback label={node.src ? "Animation could not be loaded" : "No animation chosen yet"} src={node.src} />
+      : animationData ? <div className="mx-auto max-h-80 max-w-md"><Lottie animationData={animationData} loop={node.loop ?? true} autoplay={(node.autoplay ?? true) && !reducedMotion} aria-label={node.title ?? node.caption ?? "Animation"} /></div>
       : <div className="skeleton mx-auto h-48 w-full max-w-md rounded-xl" />}
-    {node.caption && <figcaption className="mt-3 text-center text-sm text-base-content/60">{node.caption}</figcaption>}
+    <Caption>{node.caption}</Caption>
   </figure>;
 }
 
-function GraphBlock({ node }: { node: Extract<CurieNode, {type:"graph"}> }) {
+/** Resolves a theme CSS variable to a concrete colour for SVG charts; re-reads when the theme changes. */
+function useThemeColor(variable: string) {
+  const { mode } = useSettings();
+  return useMemo(() => getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || "#5b4bd5", [variable, mode]);
+}
+
+function GraphBlock({ node }: { node: Extract<CurieNode, { type: "graph" }> }) {
+  const color = useThemeColor("--color-primary");
   const chart = useMemo(() => {
-    const common = { data: node.data, margin: { top: 12, right: 16, bottom: 8, left: 0 } };
-    const axis = <>
-      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.14} />
-      <XAxis dataKey="x" tick={{ fill: "currentColor", fontSize: 12 }} tickLine={false} axisLine={false} />
-      <YAxis tick={{ fill: "currentColor", fontSize: 12 }} tickLine={false} axisLine={false} width={42} />
-      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--fallback-b3, #ddd)", background: "var(--fallback-b1, #fff)", color: "var(--fallback-bc, #111)" }} />
-    </>;
-    if (node.kind === "bar") return <BarChart {...common}>{axis}<Bar dataKey="y" fill="#16a085" radius={[5, 5, 0, 0]} /></BarChart>;
-    if (node.kind === "area") return <AreaChart {...common}>{axis}<Area type="monotone" dataKey="y" stroke="#16a085" fill="#16a085" fillOpacity={0.18} strokeWidth={3} /></AreaChart>;
-    return <LineChart {...common}>{axis}<Line type="monotone" dataKey="y" stroke="#16a085" strokeWidth={3} dot={{ r: 4, fill: "#16a085" }} activeDot={{ r: 6 }} /></LineChart>;
-  }, [node]);
-  return <section className="my-8 rounded-2xl border border-base-300 bg-base-100 p-4 sm:p-6">
-    {node.title && <h3 className="mb-4 text-lg font-semibold">{node.title}</h3>}
-    <div className="mb-2 flex flex-wrap gap-4 text-xs text-base-content/50">{node.xLabel && <span>X: {node.xLabel}</span>}{node.yLabel && <span>Y: {node.yLabel}</span>}</div>
+    const common = { data: node.data, margin: { top: 12, right: 16, bottom: node.xLabel ? 18 : 4, left: node.yLabel ? 8 : 0 } };
+    // Recharts only finds direct children, so these must be an array rather than a Fragment.
+    const axis = [
+      <CartesianGrid key="grid" strokeDasharray="3 4" stroke="currentColor" opacity={0.12} vertical={false} />,
+      <XAxis key="x" dataKey="x" tick={{ fill: "currentColor", fontSize: 12, opacity: 0.7 }} tickLine={false} axisLine={{ stroke: "currentColor", opacity: 0.2 }}
+        label={node.xLabel ? { value: node.xLabel, position: "insideBottom", offset: -12, fill: "currentColor", fontSize: 12, opacity: 0.6 } : undefined} />,
+      <YAxis key="y" tick={{ fill: "currentColor", fontSize: 12, opacity: 0.7 }} tickLine={false} axisLine={false} width={44}
+        label={node.yLabel ? { value: node.yLabel, angle: -90, position: "insideLeft", fill: "currentColor", fontSize: 12, opacity: 0.6, style: { textAnchor: "middle" } } : undefined} />,
+      <Tooltip key="tooltip" cursor={{ stroke: "currentColor", strokeOpacity: 0.2 }} contentStyle={{ borderRadius: 12, border: "1px solid var(--color-base-300)", background: "var(--color-base-100)", color: "var(--color-base-content)", boxShadow: "0 10px 30px -15px rgb(0 0 0 / .4)" }} />,
+    ];
+    if (node.kind === "bar") return <BarChart {...common}>{axis}<Bar dataKey="y" fill={color} radius={[6, 6, 0, 0]} /></BarChart>;
+    if (node.kind === "area") return <AreaChart {...common}>{axis}<Area type="monotone" dataKey="y" stroke={color} fill={color} fillOpacity={0.16} strokeWidth={3} /></AreaChart>;
+    return <LineChart {...common}>{axis}<Line type="monotone" dataKey="y" stroke={color} strokeWidth={3} dot={{ r: 4, fill: color, strokeWidth: 0 }} activeDot={{ r: 7 }} /></LineChart>;
+  }, [node, color]);
+  return <section className="my-2 rounded-3xl border border-base-300 bg-base-100 p-4 sm:p-6">
+    {node.title && <h3 className="font-display mb-4 text-lg font-semibold">{node.title}</h3>}
     <div className="h-72 w-full text-base-content"><ResponsiveContainer width="100%" height="100%">{chart}</ResponsiveContainer></div>
   </section>;
 }
 
-function CalloutBlock({ node }: { node: Extract<CurieNode, {type:"callout"}> }) {
-  const variants = {
-    info: "border-info/30 bg-info/10",
-    tip: "border-success/30 bg-success/10",
-    warning: "border-warning/40 bg-warning/10",
-    success: "border-success/30 bg-success/10",
-  };
-  return <aside className={`my-6 rounded-2xl border p-4 sm:p-5 ${variants[node.variant]}`}>
-    {node.title && <h3 className="mb-1 font-bold">{node.title}</h3>}
-    <MarkdownBlock content={node.content} />
+const CALLOUTS = {
+  info: { icon: Info, box: "border-info/30 bg-info/8", tone: "text-info" },
+  tip: { icon: Lightbulb, box: "border-secondary/60 bg-secondary/15", tone: "text-secondary-content dark:text-secondary" },
+  warning: { icon: AlertTriangle, box: "border-warning/40 bg-warning/10", tone: "text-warning" },
+  success: { icon: CircleCheck, box: "border-success/30 bg-success/8", tone: "text-success" },
+};
+
+function CalloutBlock({ node }: { node: Extract<CurieNode, { type: "callout" }> }) {
+  const { icon: Icon, box, tone } = CALLOUTS[node.variant];
+  return <aside className={`my-2 flex gap-3 rounded-2xl border p-4 sm:p-5 ${box}`}>
+    <Icon size={20} className={`mt-1 shrink-0 ${tone}`} aria-hidden="true" />
+    <div className="min-w-0 flex-1">
+      {node.title && <h3 className="font-display mb-0.5 font-bold">{node.title}</h3>}
+      <div className="[&_.curie-prose]:text-[0.97rem] [&_.curie-prose_p]:my-1"><MarkdownBlock content={node.content} /></div>
+    </div>
   </aside>;
 }
 
-function RevealBlock({ node }: { node: Extract<CurieNode, {type:"reveal"}> }) {
+function RevealBlock({ node }: { node: Extract<CurieNode, { type: "reveal" }> }) {
   const [open, setOpen] = useState(node.initiallyOpen ?? false);
-  return <details className="my-5 rounded-xl border border-base-300 bg-base-100 p-4" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary className="cursor-pointer select-none font-semibold">{node.title}</summary>
-    {open && <div className="mt-3"><MarkdownBlock content={node.content} /></div>}
-  </details>;
+  const play = useSound();
+  return <div className="my-2 rounded-2xl border border-base-300 bg-base-100">
+    <button type="button" aria-expanded={open} className="flex w-full items-center gap-3 rounded-2xl p-4 text-left font-semibold transition-colors hover:bg-base-200/60"
+      onClick={() => { setOpen(!open); play(open ? "tap" : "open"); }}>
+      <Sparkles size={18} className="text-accent" aria-hidden="true" />
+      <span className="flex-1">{node.title}</span>
+      <ChevronDown size={18} className={`transition-transform duration-300 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+    </button>
+    <div className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div className="overflow-hidden" inert={!open}><div className="px-4 pb-4 pl-12"><MarkdownBlock content={node.content} /></div></div>
+    </div>
+  </div>;
 }
 
-function QuizBlock({ node }: { node: Extract<CurieNode, {type:"quiz"}> }) {
+function QuizBlock({ node }: { node: Extract<CurieNode, { type: "quiz" }> }) {
   const [selected, setSelected] = useState<number | null>(null);
-  const [submitted, setSubmitted] = useState(false);
-  const correct = selected === node.correctIndex;
-  return <section className="my-7 rounded-2xl border border-base-300 bg-base-100 p-5 sm:p-6">
-    <div className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">Quick check</div>
-    <h3 className="mb-4 text-lg font-bold">{node.question}</h3>
-    <div className="space-y-2">
-      {node.options.map((option, index) => <label key={`${node.id}-${index}`} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${selected === index ? "border-primary bg-primary/5" : "border-base-300 hover:bg-base-200/60"}`}>
-        <input className="radio radio-primary mt-0.5" type="radio" name={`quiz-${node.id}`} checked={selected === index} onChange={() => { setSelected(index); setSubmitted(false); }} />
-        <span>{option}</span>
-      </label>)}
+  const [result, setResult] = useState<"correct" | "wrong" | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const { onQuizAnswered } = useContext(RuntimeContext);
+  const play = useSound();
+  const solved = result === "correct";
+
+  const check = () => {
+    if (selected === null) return;
+    const correct = selected === node.correctIndex;
+    setResult(correct ? "correct" : "wrong");
+    setAttempt((value) => value + 1);
+    play(correct ? "success" : "error");
+    onQuizAnswered?.(node.id, correct);
+  };
+
+  return <section className={`my-2 rounded-3xl border-2 bg-base-100 p-5 transition-colors sm:p-6 ${solved ? "border-success/50" : "border-base-300"}`}>
+    <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-primary"><Sparkles size={14} /> Quick check</div>
+    <h3 className="font-display mb-4 text-lg font-bold leading-snug">{node.question}</h3>
+    <div key={attempt} className={`space-y-2 ${result === "wrong" ? "animate-shake" : ""}`} role="radiogroup" aria-label={node.question}>
+      {node.options.map((option, index) => {
+        const isSelected = selected === index;
+        const showCorrect = solved && index === node.correctIndex;
+        const showWrong = result === "wrong" && isSelected;
+        return <button
+          key={`${node.id}-${index}`} type="button" role="radio" aria-checked={isSelected} disabled={solved}
+          onClick={() => { setSelected(index); setResult(null); play("tap"); }}
+          className={`press flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition-colors disabled:cursor-default ${
+            showCorrect ? "animate-pop border-success bg-success/10" : showWrong ? "border-error/60 bg-error/8" : isSelected ? "border-primary bg-primary/6" : "border-base-300 hover:border-base-content/25 hover:bg-base-200/50"}`}
+        >
+          <span className={`grid size-8 shrink-0 place-items-center rounded-xl text-sm font-bold ${showCorrect ? "bg-success text-success-content" : showWrong ? "bg-error text-error-content" : isSelected ? "bg-primary text-primary-content" : "bg-base-200 text-base-content/70"}`}>
+            {showCorrect ? <Check size={16} /> : showWrong ? <X size={16} /> : String.fromCharCode(65 + index)}
+          </span>
+          <span className="flex-1">{option}</span>
+        </button>;
+      })}
     </div>
-    <button className="btn btn-primary btn-sm mt-4" disabled={selected === null} onClick={() => setSubmitted(true)}>Check answer</button>
-    {submitted && <div className={`mt-4 rounded-xl p-3 text-sm ${correct ? "bg-success/10 text-success" : "bg-warning/10 text-base-content"}`}>
-      <strong>{correct ? "Correct!" : "Not quite."}</strong>
-      {node.explanation && <p className="mt-1">{node.explanation}</p>}
+    {!solved && <div className="mt-4 flex items-center gap-3">
+      <button className="btn btn-primary press" disabled={selected === null || result === "wrong"} onClick={check}>Check answer</button>
+      {result === "wrong" && <span className="animate-fade text-sm font-medium text-error">Not quite. Pick another answer and try again.</span>}
+    </div>}
+    {solved && <div className="animate-rise mt-4 rounded-2xl bg-success/10 p-4 text-sm">
+      <p className="flex items-center gap-2 font-bold text-success"><CircleCheck size={18} /> {attempt === 1 ? "Correct, first try!" : "Correct!"}</p>
+      {node.explanation && <p className="mt-1 leading-6 text-base-content/80">{node.explanation}</p>}
+      <button className="btn btn-ghost btn-xs mt-2 -ml-2" onClick={() => { setSelected(null); setResult(null); setAttempt(0); }}><RotateCcw size={13} /> Try again</button>
     </div>}
   </section>;
 }
 
-function SliderBlock({ node }: { node: Extract<CurieNode, {type:"slider"}> }) {
+function SliderBlock({ node }: { node: Extract<CurieNode, { type: "slider" }> }) {
   const [value, setValue] = useState(node.initial);
+  useEffect(() => setValue(node.initial), [node.initial]);
   const decimals = Math.min(6, (String(node.step ?? 1).split(".")[1] || "").length);
-  return <section className="my-7 rounded-2xl border border-base-300 bg-base-100 p-5 sm:p-6">
-    <div className="flex items-center justify-between gap-4"><label htmlFor={`slider-${node.id}`} className="font-semibold">{node.label}</label><output className="rounded-lg bg-primary/10 px-3 py-1.5 font-mono font-bold text-primary">{value.toFixed(decimals)}{node.unit ? ` ${node.unit}` : ""}</output></div>
-    <input id={`slider-${node.id}`} type="range" className="range range-primary mt-4" min={node.min} max={node.max} step={node.step ?? 1} value={value} onChange={(event) => setValue(Number(event.target.value))} />
-    <div className="mt-1 flex justify-between text-xs text-base-content/50"><span>{node.min}{node.unit ? ` ${node.unit}` : ""}</span><span>{node.max}{node.unit ? ` ${node.unit}` : ""}</span></div>
+  const unit = node.unit ? ` ${node.unit}` : "";
+  const percent = node.max > node.min ? ((value - node.min) / (node.max - node.min)) * 100 : 0;
+  return <section className="my-2 rounded-3xl border border-base-300 bg-base-100 p-5 sm:p-6">
+    <div className="flex items-center justify-between gap-4">
+      <label htmlFor={`slider-${node.id}`} className="font-semibold">{node.label}</label>
+      <output htmlFor={`slider-${node.id}`} className="min-w-20 rounded-xl bg-primary/10 px-3 py-1.5 text-center font-mono font-bold tabular-nums text-primary">{value.toFixed(decimals)}{unit}</output>
+    </div>
+    <input id={`slider-${node.id}`} type="range" className="range range-primary mt-5 w-full" min={node.min} max={node.max} step={node.step ?? 1} value={value}
+      style={{ "--range-fill": `${percent}%` } as React.CSSProperties} onChange={(event) => setValue(Number(event.target.value))} />
+    <div className="mt-1.5 flex justify-between text-xs text-base-content/50"><span>{node.min}{unit}</span><span>{node.max}{unit}</span></div>
   </section>;
 }
 
-function FlashcardBlock({ node }: { node: Extract<CurieNode, {type:"flashcard"}> }) {
+const FLIP_MS = 170;
+
+/**
+ * Flips in two halves (turn edge-on, swap the face, turn back) instead of a 3D card with hidden back
+ * faces, which flickers in WebKitGTK and some Android webviews.
+ */
+function FlashcardBlock({ node }: { node: Extract<CurieNode, { type: "flashcard" }> }) {
   const [flipped, setFlipped] = useState(false);
-  return <button type="button" onClick={() => setFlipped((v) => !v)} className="my-6 flex min-h-44 w-full flex-col items-center justify-center rounded-2xl border border-base-300 bg-base-200/50 p-6 text-center transition hover:border-primary/50">
-    <span className="mb-3 text-xs font-bold uppercase tracking-widest text-primary">{flipped ? "Answer" : "Flashcard · Tap to reveal"}</span>
-    <span className="text-lg font-semibold">{flipped ? node.back : node.front}</span>
+  const [turning, setTurning] = useState(false);
+  const { reducedMotion } = useSettings();
+  const play = useSound();
+  const flip = () => {
+    if (turning) return;
+    play("flip");
+    if (reducedMotion) return setFlipped(!flipped);
+    setTurning(true);
+    setTimeout(() => { setFlipped((value) => !value); setTurning(false); }, FLIP_MS);
+  };
+  return <button type="button" aria-pressed={flipped} onClick={flip}
+    aria-label={flipped ? `Answer: ${node.back}. Press to see the question.` : `${node.front}. Press to reveal the answer.`}
+    style={{ transform: `perspective(1200px) rotateY(${turning ? 90 : 0}deg)`, transition: `transform ${FLIP_MS}ms ${turning ? "ease-in" : "ease-out"}` }}
+    className={`my-2 flex min-h-52 w-full flex-col items-center justify-center rounded-3xl border p-6 text-center transition-colors ${flipped ? "border-primary/30 bg-primary text-primary-content" : "border-base-300 bg-gradient-to-br from-base-200/80 to-base-100 hover:border-primary/40"}`}>
+    <span className={`mb-3 text-xs font-bold uppercase tracking-[0.16em] ${flipped ? "opacity-70" : "text-primary"}`}>{flipped ? "Answer" : "Flashcard"}</span>
+    <span className="font-display text-xl font-semibold leading-snug">{flipped ? node.back : node.front}</span>
+    {!flipped && <span className="mt-4 text-xs text-base-content/50">Tap to flip</span>}
   </button>;
 }
 
-export default function BlockRenderer({ node, zip, onError }: Props) {
+/** Keeps one malformed or failing block from taking down the whole lesson. */
+class BlockErrorBoundary extends Component<{ id: string; onError: Props["onError"]; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: Error, _info: ErrorInfo) { this.props.onError(`Block "${this.props.id}" could not be displayed: ${error.message}`); }
+  render() {
+    return this.state.failed
+      ? <div role="note" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm">This part of the lesson could not be displayed.</div>
+      : this.props.children;
+  }
+}
+
+export default function BlockRenderer(props: Props) {
+  const content = <div id={`block-${props.node.id}`} className="scroll-mt-24">
+    <BlockErrorBoundary id={props.node.id} onError={props.onError}><Block {...props} /></BlockErrorBoundary>
+  </div>;
+  return props.frame ? props.frame(props.node, content) : content;
+}
+
+function Block({ node, assets, onError, frame }: Props) {
   switch (node.type) {
     case "markdown": return <MarkdownBlock content={node.content} />;
-    case "image": return <ImageBlock node={node} zip={zip} onError={onError} />;
-    case "video": return <VideoBlock node={node} zip={zip} onError={onError} />;
-    case "lottie": return <LottieBlock node={node} zip={zip} onError={onError} />;
+    case "image": return <ImageBlock node={node} assets={assets} onError={onError} />;
+    case "video": return <VideoBlock node={node} assets={assets} onError={onError} />;
+    case "lottie": return <LottieBlock node={node} assets={assets} onError={onError} />;
     case "graph": return <GraphBlock node={node} />;
     case "callout": return <CalloutBlock node={node} />;
-    case "divider": return <hr className="my-8 border-base-300" />;
+    case "divider": return <div className="my-6 flex items-center justify-center gap-2 text-base-content/25" role="separator"><span className="size-1.5 rounded-full bg-current" /><span className="size-1.5 rounded-full bg-current" /><span className="size-1.5 rounded-full bg-current" /></div>;
     case "reveal": return <RevealBlock node={node} />;
     case "quiz": return <QuizBlock node={node} />;
     case "slider": return <SliderBlock node={node} />;
     case "flashcard": return <FlashcardBlock node={node} />;
-    case "section": return <section className="my-8">
-      {node.title && <h2 className="mb-4 text-2xl font-bold tracking-tight">{node.title}</h2>}
-      <div className="space-y-6">{node.children.map((child) => <BlockRenderer key={child.id} node={child} zip={zip} onError={onError} />)}</div>
+    case "section": return <section className="my-4 border-l-2 border-primary/15 pl-4 sm:pl-6">
+      {node.title && <h2 className="font-display mb-5 text-2xl font-bold tracking-tight sm:text-3xl">{node.title}</h2>}
+      <div className="space-y-7">{node.children.map((child) => <BlockRenderer key={child.id} node={child} assets={assets} onError={onError} frame={frame} />)}</div>
     </section>;
   }
 }

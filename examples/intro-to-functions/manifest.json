@@ -3,7 +3,7 @@
   "formatVersion": "0.1.0",
   "id": "org.curie.sample.functions",
   "title": "A first look at functions",
-  "description": "A short introduction to functions with a graph and scientific notation.",
+  "description": "See how a rule turns inputs into outputs, with a graph, quick checks, and a little science.",
   "author": "Curie",
   "entry": "document.json",
   "assetsDirectory": "assets/",
@@ -18,6 +18,8 @@
     "slider",
     "reveal",
     "flashcard",
-    "callout"
+    "callout",
+    "divider",
+    "section"
   ]
 }

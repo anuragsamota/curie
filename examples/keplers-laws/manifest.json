@@ -1,0 +1,24 @@
+{
+  "format": "curie",
+  "formatVersion": "0.1.0",
+  "id": "org.curie.examples.kepler",
+  "title": "Kepler's laws of planetary motion",
+  "description": "How Johannes Kepler cracked the code of the planets using nothing but careful observations, and the three laws he found.",
+  "author": "Curie Examples",
+  "entry": "document.json",
+  "assetsDirectory": "assets/",
+  "requiredFeatures": [
+    "markdown",
+    "math",
+    "image",
+    "graph",
+    "lottie",
+    "quiz",
+    "slider",
+    "reveal",
+    "flashcard",
+    "callout",
+    "divider",
+    "section"
+  ]
+}

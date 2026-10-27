@@ -1,171 +1,177 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
-import { BookOpen, Check, ChevronDown, CircleHelp, Download, FileUp, FlaskConical, GraduationCap, Menu, Moon, Sun, X } from "lucide-react";
-import BlockRenderer from "./components/BlockRenderer";
-import { exportCurie, loadCurie, type LoadedCurie } from "./curie/package";
-import { sampleDocument, sampleManifest } from "./curie/sample";
-import type { CurieDocument, CurieManifest } from "./curie/types";
+import { Suspense, lazy, useState } from "react";
+import type { ReactNode } from "react";
+import { FileUp, Library, Monitor, Moon, PanelLeftClose, Plus, Settings, Sun, Volume2, VolumeX } from "lucide-react";
+import { useFileDrop } from "./lib/drop";
+import { useLibrary } from "./lib/library";
+import { navigate, paths, useRoute, type Route } from "./lib/router";
+import { useSettings, type Settings as SettingsType } from "./lib/settings";
+import { useSound } from "./lib/sound";
+import { isMod, useAppActions, useShortcut } from "./ui/AppActions";
+import { LessonCover } from "./ui/LessonCover";
+import { Logo, LogoMark } from "./ui/Logo";
+import LibraryPage from "./pages/LibraryPage";
 
-type LessonState = { manifest: CurieManifest; document: CurieDocument; zip?: LoadedCurie["zip"] };
+const LessonPage = lazy(() => import("./pages/LessonPage"));
+const EditorPage = lazy(() => import("./pages/EditorPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage"));
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
+const THEME_CYCLE: SettingsType["theme"][] = ["system", "light", "dark"];
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
+
+function NavItem({ href, icon: Icon, label, active, collapsed, badge }: { href: string; icon: typeof Library; label: string; active: boolean; collapsed: boolean; badge?: number }) {
+  const play = useSound();
+  return <a href={href} onClick={() => play("tap")} aria-current={active ? "page" : undefined} title={collapsed ? label : undefined} aria-label={label}
+    className={`press flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${collapsed ? "justify-center" : ""} ${active ? "bg-primary/10 text-primary" : "text-base-content/70 hover:bg-base-300/50 hover:text-base-content"}`}>
+    <Icon size={19} className="shrink-0" />
+    {!collapsed && <span className="flex-1">{label}</span>}
+    {!collapsed && badge ? <span className="text-xs tabular-nums text-base-content/45">{badge}</span> : null}
+  </a>;
+}
+
+function QuickToggles({ vertical }: { vertical: boolean }) {
+  const { settings, update } = useSettings();
+  const play = useSound();
+  const ThemeIcon = THEME_ICON[settings.theme];
+  const nextTheme = THEME_CYCLE[(THEME_CYCLE.indexOf(settings.theme) + 1) % THEME_CYCLE.length];
+  return <div className={`flex gap-1 ${vertical ? "flex-col items-center" : ""}`}>
+    <button className="btn btn-ghost btn-sm btn-square press" title={`Theme: ${settings.theme}`} aria-label={`Theme: ${settings.theme}. Switch to ${nextTheme}.`}
+      onClick={() => { update({ theme: nextTheme }); play("toggle"); }}><ThemeIcon size={17} /></button>
+    <button className="btn btn-ghost btn-sm btn-square press" title={settings.sound ? "Sound on" : "Sound off"} aria-label={settings.sound ? "Mute sound effects" : "Turn on sound effects"} aria-pressed={settings.sound}
+      onClick={() => { update({ sound: !settings.sound }); if (!settings.sound) setTimeout(() => play("toggle"), 0); }}>{settings.sound ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
+  </div>;
+}
+
+function Sidebar({ route }: { route: Route }) {
+  const { settings, update } = useSettings();
+  const { lessons } = useLibrary();
+  const { openNewLesson, openImport } = useAppActions();
+  const collapsed = settings.sidebarCollapsed;
+  const recent = lessons.filter((lesson) => lesson.openedAt).sort((a, b) => b.openedAt! - a.openedAt!).slice(0, 4);
+  const activeKey = route.name === "lesson" ? route.key : undefined;
+
+  return <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-base-300/80 bg-base-200/60 transition-[width] duration-300 ease-out lg:flex ${collapsed ? "w-[76px]" : "w-[264px]"}`}>
+    <div className={`flex h-16 items-center ${collapsed ? "justify-center" : "justify-between px-5"}`}>
+      {collapsed
+        ? <button className="press rounded-xl" aria-label="Expand sidebar" title="Expand sidebar (Ctrl+B)" onClick={() => update({ sidebarCollapsed: false })}><LogoMark size={34} /></button>
+        : <a href={paths.library} aria-label="Curie library"><Logo /></a>}
+      {!collapsed && <button className="btn btn-ghost btn-sm btn-square" aria-label="Collapse sidebar" title="Collapse sidebar (Ctrl+B)" onClick={() => update({ sidebarCollapsed: true })}><PanelLeftClose size={18} /></button>}
+    </div>
+    <div className={`flex flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden scroll-thin pb-4 ${collapsed ? "px-3" : "px-4"}`}>
+      <div className="flex flex-col gap-2 pt-2">
+        <button className={`btn btn-primary press shadow-sm ${collapsed ? "btn-square mx-auto" : "justify-start"}`} title={collapsed ? "New lesson" : undefined} onClick={openNewLesson} aria-label="New lesson"><Plus size={18} />{!collapsed && "New lesson"}</button>
+        <button className={`btn btn-ghost press ${collapsed ? "btn-square mx-auto" : "justify-start"}`} title={collapsed ? "Import .curie" : undefined} onClick={openImport} aria-label="Import a .curie lesson"><FileUp size={18} />{!collapsed && "Import .curie"}</button>
+      </div>
+      <nav className="flex flex-col gap-1" aria-label="Main">
+        <NavItem href={paths.library} icon={Library} label="Library" active={route.name === "library"} collapsed={collapsed} badge={lessons.length} />
+        <NavItem href={paths.settings} icon={Settings} label="Settings" active={route.name === "settings"} collapsed={collapsed} />
+      </nav>
+      {!collapsed && recent.length > 0 && <div>
+        <p className="mb-2 px-3 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-base-content/45">Continue learning</p>
+        <div className="flex flex-col gap-1">
+          {recent.map((lesson) => <a key={lesson.key} href={paths.lesson(lesson.key)}
+            className={`press flex items-center gap-3 rounded-xl p-2 text-sm transition-colors ${activeKey === lesson.key ? "bg-base-300/70" : "hover:bg-base-300/50"}`}>
+            <LessonCover seed={lesson.manifest.id} title={lesson.manifest.title} className="size-9 shrink-0 rounded-lg [&_span]:bottom-0 [&_span]:left-1.5 [&_span]:text-xl" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{lesson.manifest.title}</span>
+              <span className="mt-1 block h-1 overflow-hidden rounded-full bg-base-300"><span className="block h-full rounded-full bg-primary" style={{ width: `${Math.round((lesson.progress ?? 0) * 100)}%` }} /></span>
+            </span>
+          </a>)}
+        </div>
+      </div>}
+    </div>
+    <div className={`flex items-center border-t border-base-300/80 py-3 ${collapsed ? "flex-col gap-2 px-3" : "justify-between px-4"}`}>
+      <QuickToggles vertical={collapsed} />
+      {!collapsed && <span className="text-xs text-base-content/40">v0.2</span>}
+    </div>
+  </aside>;
+}
+
+function MobileNav({ route }: { route: Route }) {
+  const { openNewLesson } = useAppActions();
+  const play = useSound();
+  const item = (active: boolean) => `press flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.7rem] font-medium ${active ? "text-primary" : "text-base-content/60"}`;
+  return <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 border-t border-base-300 bg-base-100/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-lg lg:hidden">
+    <div className="mx-auto flex max-w-md items-center px-4">
+      <a href={paths.library} className={item(route.name === "library")} onClick={() => play("tap")}><Library size={21} />Library</a>
+      <button className={item(false)} onClick={openNewLesson}><span className="-mt-5 grid size-12 place-items-center rounded-2xl bg-primary text-primary-content shadow-lg shadow-primary/30"><Plus size={22} /></span>Create</button>
+      <a href={paths.settings} className={item(route.name === "settings")} onClick={() => play("tap")}><Settings size={21} />Settings</a>
+    </div>
+  </nav>;
+}
+
+function MobileTopBar() {
+  const { openImport } = useAppActions();
+  return <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-base-300/70 bg-base-100/90 px-4 backdrop-blur-lg lg:hidden">
+    <a href={paths.library} aria-label="Curie library"><Logo /></a>
+    <div className="flex items-center gap-1">
+      <button className="btn btn-ghost btn-sm btn-square" aria-label="Import a .curie lesson" onClick={openImport}><FileUp size={18} /></button>
+      <QuickToggles vertical={false} />
+    </div>
+  </header>;
+}
+
+/** Accepts .curie files dropped anywhere outside the editor. */
+function DropZone({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const [dragging, setDragging] = useState(false);
+  const { importFiles, importPaths } = useAppActions();
+  useFileDrop(enabled, ({ paths: dropped, files }) => {
+    const lessons = dropped.filter((path) => path.toLowerCase().endsWith(".curie"));
+    if (lessons.length) void importPaths(lessons);
+    else if (files.length) void importFiles(files);
+  }, setDragging);
+  return <>
+    {children}
+    {dragging && <div className="animate-fade pointer-events-none fixed inset-0 z-[90] grid place-items-center bg-base-100/70 p-6 backdrop-blur-sm">
+      <div className="animate-pop flex flex-col items-center gap-4 rounded-[2rem] border-2 border-dashed border-primary bg-base-100 px-12 py-10 text-center shadow-2xl">
+        <LogoMark size={56} animated />
+        <p className="font-display text-xl font-bold">Drop to import</p>
+        <p className="text-sm text-base-content/60">.curie lesson packages are added to your library</p>
+      </div>
+    </div>}
+  </>;
+}
+
+function PageFallback() {
+  return <div className="grid min-h-[60vh] place-items-center"><LogoMark size={44} animated /></div>;
 }
 
 export default function App() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem("curie-theme");
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-  const [lesson, setLesson] = useState<LessonState>({ manifest: sampleManifest, document: sampleDocument });
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const route = useRoute();
+  const { settings, update } = useSettings();
+  const { openImport, openNewLesson } = useAppActions();
+  const fullscreen = route.name === "editor";
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("curie-theme", theme);
-  }, [theme]);
+  useShortcut((event) => isMod(event) && event.key.toLowerCase() === "b", (event) => { event.preventDefault(); update({ sidebarCollapsed: !settings.sidebarCollapsed }); });
+  useShortcut((event) => isMod(event) && event.key.toLowerCase() === "o", (event) => { event.preventDefault(); openImport(); });
+  useShortcut((event) => event.altKey && event.key.toLowerCase() === "n", (event) => { event.preventDefault(); openNewLesson(); });
+  useShortcut((event) => isMod(event) && event.key === ",", (event) => { event.preventDefault(); navigate(paths.settings); });
 
-  const reportError = useCallback((message: string) => setError(message), []);
-  async function handleImport(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setError(""); setNotice("");
-    try {
-      const loaded = await loadCurie(file);
-      setLesson({ manifest: loaded.manifest, document: loaded.document, zip: loaded.zip });
-      setNotice(`Imported “${loaded.manifest.title}”.`);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not import this lesson.");
-    } finally {
-      event.target.value = "";
+  const page = (() => {
+    switch (route.name) {
+      case "library": return <LibraryPage />;
+      case "lesson": return <LessonPage lessonKey={route.key} />;
+      case "editor": return <EditorPage lessonKey={route.key} />;
+      case "settings": return <SettingsPage />;
+      case "notfound": return <NotFoundPage />;
     }
+  })();
+  const pageKey = route.name === "lesson" || route.name === "editor" ? `${route.name}:${route.key}` : route.name;
+
+  if (fullscreen) {
+    return <Suspense fallback={<PageFallback />}><div key={pageKey} className="animate-fade">{page}</div></Suspense>;
   }
 
-  async function handleExport() {
-    setError(""); setNotice("");
-    try {
-      const blob = await exportCurie(lesson.manifest, lesson.document, lesson.zip);
-      const safeName = lesson.manifest.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lesson";
-      downloadBlob(blob, `${safeName}.curie`);
-      setNotice("Exported lesson package.");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not export this lesson.");
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-base-100 text-base-content">
-      <header className="sticky top-0 z-30 border-b border-base-300/70 bg-base-100/95 backdrop-blur">
-        <div className="navbar mx-auto min-h-16 max-w-7xl px-4 sm:px-6">
-          <div className="navbar-start gap-2">
-            <button className="btn btn-ghost btn-square lg:hidden" aria-label="Open navigation" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20} /></button>
-            <a className="flex items-center gap-2 no-underline" href="#" aria-label="Curie home">
-              <span className="grid size-9 place-items-center rounded-xl bg-[#d9f99d] text-[#183b2b]"><FlaskConical size={20} strokeWidth={2.4} /></span>
-              <span className="text-xl font-extrabold tracking-tight">curie<span className="text-primary">.</span></span>
-            </a>
-          </div>
-          <div className="navbar-center hidden md:flex">
-            <div className="flex items-center gap-1 rounded-full bg-base-200 p-1 text-sm font-medium">
-              <button className="btn btn-sm rounded-full border-0 bg-base-100 shadow-sm">Learn</button>
-              <button className="btn btn-sm btn-ghost rounded-full" onClick={() => setNotice("Lesson editor is planned for a later milestone.")}>Create</button>
-              <button className="btn btn-sm btn-ghost rounded-full" onClick={() => setNotice("Your lesson library will be added after the package runtime milestone.")}>Library</button>
-            </div>
-          </div>
-          <div className="navbar-end gap-2">
-            <input ref={fileInput} type="file" accept=".curie,application/zip" className="hidden" onChange={handleImport} />
-            <button className="btn btn-ghost btn-sm hidden sm:inline-flex" onClick={() => fileInput.current?.click()}><FileUp size={16} /> Import</button>
-            <button className="btn btn-primary btn-sm hidden sm:inline-flex" onClick={handleExport}><Download size={16} /> Export lesson</button>
-            <button className="btn btn-ghost btn-square btn-sm" aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`} onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
-              {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-7xl grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className={`${sidebarOpen ? "block" : "hidden"} border-b border-base-300 px-4 py-6 lg:sticky lg:top-16 lg:block lg:h-[calc(100vh-4rem)] lg:border-b-0 lg:border-r lg:px-5`}>
-          <div className="mb-7 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-base-content/45">Your learning space</p>
-              <p className="mt-1 font-semibold">Foundations</p>
-            </div>
-            <button className="btn btn-ghost btn-square btn-xs lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={16} /></button>
-          </div>
-          <div className="space-y-1">
-            <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-base-content/40">Explore</div>
-            <button className="flex w-full items-center gap-3 rounded-xl bg-primary/10 px-3 py-2.5 text-left text-sm font-semibold text-primary"><BookOpen size={17} /> Getting started</button>
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-base-content/65 hover:bg-base-200"><GraduationCap size={17} /> Mathematics</button>
-            <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-base-content/65 hover:bg-base-200"><FlaskConical size={17} /> Science</button>
-          </div>
-          <div className="mt-9 rounded-2xl bg-base-200/70 p-4">
-            <div className="mb-2 flex size-9 items-center justify-center rounded-xl bg-[#d9f99d] text-[#183b2b]"><CircleHelp size={18} /></div>
-            <p className="text-sm font-bold">Learning, your way</p>
-            <p className="mt-1 text-xs leading-5 text-base-content/60">Portable lessons you can learn from, share, and take with you.</p>
-          </div>
-          <div className="mt-8 text-xs text-base-content/40">Curie Preview · 0.1.0</div>
-        </aside>
-
-        <main className="min-w-0 px-4 py-7 sm:px-8 lg:px-12 lg:py-10">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-7 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.13em] text-base-content/45">
-              <span>Foundations</span><ChevronDown size={13} /><span className="text-primary">Mathematics</span>
-            </div>
-            <div className="mb-8">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="badge badge-primary badge-outline">STARTER LESSON</span>
-                <span className="text-xs text-base-content/50">About 5 min</span>
-              </div>
-              <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">{lesson.manifest.title}</h1>
-              {lesson.manifest.description && <p className="mt-4 max-w-2xl text-lg leading-8 text-base-content/65">{lesson.manifest.description}</p>}
-              <div className="mt-6 flex items-center gap-3 border-b border-base-300 pb-6">
-                <div className="avatar placeholder"><div className="size-9 rounded-full bg-primary/15 text-sm font-bold text-primary"><span>{(lesson.manifest.author || "C").slice(0, 1).toUpperCase()}</span></div></div>
-                <div><p className="text-sm font-semibold">{lesson.manifest.author || "Curie author"}</p><p className="text-xs text-base-content/50">Learning path · Foundations</p></div>
-                <div className="ml-auto flex items-center gap-1 text-xs text-base-content/50"><Check size={14} /> Ready to explore</div>
-              </div>
-            </div>
-
-            {error && <div role="alert" className="alert alert-error mb-5"><span>{error}</span><button className="btn btn-ghost btn-xs" onClick={() => setError("")}>Dismiss</button></div>}
-            {notice && <div role="status" className="alert mb-5 border border-success/20 bg-success/10 text-sm"><Check size={17} /><span>{notice}</span><button className="btn btn-ghost btn-xs ml-auto" onClick={() => setNotice("")}>Dismiss</button></div>}
-
-            <article className="lesson-content">
-              {lesson.document.blocks.map((node) => <div key={node.id} className="mb-7"><BlockRenderer node={node} zip={lesson.zip} onError={reportError} /></div>)}
-            </article>
-
-            <div className="mt-12 rounded-2xl border border-base-300 bg-base-200/40 p-5 sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Check size={20} /></div>
-                <div className="flex-1">
-                  <h2 className="font-bold">That’s a first step.</h2>
-                  <p className="mt-1 text-sm leading-6 text-base-content/65">Curie lessons are portable packages. This preview can load and render a basic lesson file; the next milestone will preserve packaged assets during export and add lesson editing.</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button className="btn btn-primary btn-sm" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Review lesson</button>
-                    <button className="btn btn-outline btn-sm" onClick={() => fileInput.current?.click()}><FileUp size={15} /> Import a lesson</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <footer className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-base-300 pt-5 text-xs text-base-content/45">
-              <span>© Curie · Built for curious minds</span>
-              <span className="flex items-center gap-2"><span className="size-2 rounded-full bg-success" /> Local preview</span>
-            </footer>
-          </div>
+  return <DropZone enabled>
+    <div className="flex min-h-screen bg-base-100 text-base-content">
+      <Sidebar route={route} />
+      <div className="flex min-w-0 flex-1 flex-col pb-20 lg:pb-0">
+        {route.name !== "lesson" && <MobileTopBar />}
+        <main className="flex-1">
+          <Suspense fallback={<PageFallback />}><div key={pageKey} className="animate-page">{page}</div></Suspense>
         </main>
       </div>
-      <div className="fixed bottom-4 right-4 z-20 sm:hidden">
-        <div className="join shadow-lg">
-          <button className="btn btn-neutral join-item" onClick={() => fileInput.current?.click()} aria-label="Import lesson"><FileUp size={17} /></button>
-          <button className="btn btn-primary join-item" onClick={handleExport} aria-label="Export lesson"><Download size={17} /></button>
-        </div>
-      </div>
+      <MobileNav route={route} />
     </div>
-  );
+  </DropZone>;
 }

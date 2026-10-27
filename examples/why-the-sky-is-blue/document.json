@@ -1,0 +1,235 @@
+{
+  "documentVersion": 1,
+  "blocks": [
+    {
+      "id": "hook",
+      "type": "markdown",
+      "content": "Look up on a clear day and the whole sky glows blue. But the Sun isn't blue, and space is black. So where does all that blue come from?\n\nIn this lesson you'll follow a single beam of sunlight on its journey through the air, and by the end you'll be able to explain blue skies, red sunsets **and** white clouds with one idea.\n\n> **You will learn:** what sunlight is made of, how tiny molecules scatter light, and why scattering depends so strongly on colour."
+    },
+    {
+      "id": "s-light",
+      "type": "section",
+      "title": "1. Sunlight is a mixture",
+      "children": [
+        {
+          "id": "spectrum",
+          "type": "markdown",
+          "content": "Sunlight looks white, but it is really a mixture of every colour of the rainbow. Each colour is light of a different **wavelength** $\\lambda$, measured in nanometres (nm):\n\n| Colour | Approximate wavelength |\n|---|---|\n| Violet | 400 nm |\n| Blue | 450 nm |\n| Green | 530 nm |\n| Yellow | 580 nm |\n| Red | 700 nm |\n\nShorter wavelength means the light wave wiggles more times in the same distance."
+        },
+        {
+          "id": "prism-tip",
+          "type": "callout",
+          "variant": "tip",
+          "title": "Try it at home",
+          "content": "Shine a torch through a glass of water or catch sunlight on a CD. The white light spreads into a rainbow because each wavelength bends by a slightly different amount."
+        },
+        {
+          "id": "fc-wavelength",
+          "type": "flashcard",
+          "front": "Which has the shorter wavelength: red light or blue light?",
+          "back": "Blue light, at about 450 nm compared with about 700 nm for red."
+        }
+      ]
+    },
+    {
+      "id": "s-scatter",
+      "type": "section",
+      "title": "2. Molecules scatter light",
+      "children": [
+        {
+          "id": "scatter-text",
+          "type": "markdown",
+          "content": "Air is mostly nitrogen ($\\text{N}_2$) and oxygen ($\\text{O}_2$) molecules. They are thousands of times smaller than a wavelength of light. When light hits one, the molecule's electrons jiggle and re-radiate some of that light **in all directions**. This is called **Rayleigh scattering**."
+        },
+        {
+          "id": "scatter-img",
+          "type": "image",
+          "src": "assets/scattering.svg",
+          "alt": "Sunlight enters the atmosphere and hits a gas molecule. Blue light is scattered in many directions while red light mostly continues straight. A person on the ground sees blue coming from all over the sky.",
+          "caption": "Blue light gets bounced around the sky; red light mostly keeps going."
+        },
+        {
+          "id": "law",
+          "type": "markdown",
+          "content": "The key fact is how strongly scattering depends on wavelength. Lord Rayleigh found that the scattered intensity $I$ goes as one over the **fourth power** of the wavelength:\n\n$$\nI \\propto \\frac{1}{\\lambda^{4}}\n$$\n\nThat fourth power makes a huge difference. Compare blue (450 nm) with red (700 nm):\n\n$$\n\\frac{I_\\text{blue}}{I_\\text{red}} = \\left(\\frac{700}{450}\\right)^{4} \\approx 5.9\n$$\n\nBlue light is scattered almost **six times** more than red."
+        },
+        {
+          "id": "rayleigh-graph",
+          "type": "graph",
+          "title": "How much each wavelength scatters (relative to red at 700 nm)",
+          "kind": "area",
+          "xLabel": "Wavelength (nm)",
+          "yLabel": "Relative scattering",
+          "data": [
+            {
+              "x": 400,
+              "y": 9.38
+            },
+            {
+              "x": 425,
+              "y": 7.36
+            },
+            {
+              "x": 450,
+              "y": 5.86
+            },
+            {
+              "x": 475,
+              "y": 4.72
+            },
+            {
+              "x": 500,
+              "y": 3.84
+            },
+            {
+              "x": 525,
+              "y": 3.16
+            },
+            {
+              "x": 550,
+              "y": 2.62
+            },
+            {
+              "x": 575,
+              "y": 2.2
+            },
+            {
+              "x": 600,
+              "y": 1.85
+            },
+            {
+              "x": 625,
+              "y": 1.57
+            },
+            {
+              "x": 650,
+              "y": 1.35
+            },
+            {
+              "x": 675,
+              "y": 1.16
+            },
+            {
+              "x": 700,
+              "y": 1.0
+            }
+          ]
+        },
+        {
+          "id": "quiz-ratio",
+          "type": "quiz",
+          "question": "If one wavelength is half as long as another, how many times more strongly is it scattered?",
+          "options": [
+            "2 times",
+            "4 times",
+            "8 times",
+            "16 times"
+          ],
+          "correctIndex": 3,
+          "explanation": "Scattering goes as 1/λ⁴. Halving λ multiplies the scattering by 2⁴ = 16."
+        },
+        {
+          "id": "violet",
+          "type": "reveal",
+          "title": "Puzzle: violet scatters even more than blue, so why isn't the sky violet?",
+          "content": "Three reasons work together:\n\n1. **The Sun emits less violet** than blue to begin with.\n2. **Some violet is absorbed** high in the atmosphere.\n3. **Your eyes are less sensitive to violet.** The colour receptors in your eyes respond to the scattered mixture, and the result looks sky blue.\n\nSo the sky really does contain lots of violet light; we just perceive the mix as blue."
+        }
+      ]
+    },
+    {
+      "id": "div1",
+      "type": "divider"
+    },
+    {
+      "id": "s-sunset",
+      "type": "section",
+      "title": "3. Red sunsets",
+      "children": [
+        {
+          "id": "sunset-text",
+          "type": "markdown",
+          "content": "At noon, sunlight takes a short path straight down through the atmosphere. At sunset it skims sideways through **up to 40 times more air**. Along that long path, almost all the blue gets scattered out of the beam before it reaches you. What's left is the light that scatters least: oranges and reds."
+        },
+        {
+          "id": "sunset-img",
+          "type": "image",
+          "src": "assets/sunset.svg",
+          "alt": "Diagram comparing the short vertical path of sunlight at noon with the long, grazing path through the atmosphere at sunset.",
+          "caption": "The same atmosphere, two very different path lengths."
+        },
+        {
+          "id": "path-slider",
+          "type": "slider",
+          "label": "How many times more air does sunset light pass through?",
+          "min": 1,
+          "max": 40,
+          "step": 1,
+          "initial": 1,
+          "unit": "× noon"
+        },
+        {
+          "id": "slider-note",
+          "type": "callout",
+          "variant": "info",
+          "title": "What the slider shows",
+          "content": "Drag towards 40. The more air the light crosses, the more of its blue is scattered away, and the redder the Sun looks."
+        },
+        {
+          "id": "quiz-sunset",
+          "type": "quiz",
+          "question": "Why does the setting Sun look orange-red?",
+          "options": [
+            "The Sun cools down in the evening",
+            "Its light passes through more air, which scatters away the blue",
+            "Red light is created by the atmosphere at sunset",
+            "The Moon blocks the blue light"
+          ],
+          "correctIndex": 1,
+          "explanation": "At sunset the light's long path through the air strips out most of the blue by scattering, leaving the longer red and orange wavelengths."
+        }
+      ]
+    },
+    {
+      "id": "s-clouds",
+      "type": "section",
+      "title": "4. White clouds",
+      "children": [
+        {
+          "id": "clouds",
+          "type": "markdown",
+          "content": "Cloud droplets are about **1,000 times bigger** than air molecules, which makes them *larger* than the wavelength of light. Large particles scatter all colours about equally (this is called **Mie scattering**), so the mixture stays white.\n\nThat's also why fog, milk, and snow look white."
+        },
+        {
+          "id": "mars",
+          "type": "reveal",
+          "title": "Bonus: on Mars, sunsets are blue",
+          "content": "Mars has a thin atmosphere full of fine dust. The dust particles scatter red light around the sky (so the daytime sky looks butterscotch) but let blue light travel forward near the Sun. NASA's rovers have photographed **blue sunsets** on Mars."
+        }
+      ]
+    },
+    {
+      "id": "recap",
+      "type": "markdown",
+      "content": "## Recap"
+    },
+    {
+      "id": "fc-1",
+      "type": "flashcard",
+      "front": "What is Rayleigh scattering?",
+      "back": "Scattering of light by particles much smaller than its wavelength, with intensity proportional to 1/λ⁴."
+    },
+    {
+      "id": "fc-2",
+      "type": "flashcard",
+      "front": "Why are clouds white instead of blue?",
+      "back": "Their droplets are larger than the wavelength of light, so they scatter all colours about equally."
+    },
+    {
+      "id": "done",
+      "type": "callout",
+      "variant": "success",
+      "title": "You can now explain",
+      "content": "blue skies (short wavelengths scatter most), red sunsets (long paths remove the blue), and white clouds (big droplets scatter every colour)."
+    }
+  ]
+}

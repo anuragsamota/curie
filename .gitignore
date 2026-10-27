@@ -3,5 +3,10 @@ dist/
 .vite/
 *.tsbuildinfo
 src-tauri/target/
-src-tauri/gen/
+src-tauri/gen/schemas/
 .DS_Store
+
+# Android signing
+keystore/
+*.keystore
+keystore.properties

@@ -1,19 +1,21 @@
 import { z } from "zod";
 
 const Base = { id: z.string().min(1) };
+const Source = z.string().min(1, "Choose a file or enter a URL");
 
-export const CurieNodeSchema: z.ZodType<CurieNode> = z.lazy(() =>
+// Input is `unknown` because defaulted fields (e.g. graph `kind`) are optional before parsing.
+export const CurieNodeSchema: z.ZodType<CurieNode, z.ZodTypeDef, unknown> = z.lazy(() =>
   z.discriminatedUnion("type", [
     z.object({ ...Base, type: z.literal("markdown"), content: z.string() }),
-    z.object({ ...Base, type: z.literal("image"), src: z.string().min(1), alt: z.string(), caption: z.string().optional() }),
-    z.object({ ...Base, type: z.literal("video"), src: z.string().min(1), title: z.string().optional(), caption: z.string().optional() }),
+    z.object({ ...Base, type: z.literal("image"), src: Source, alt: z.string(), caption: z.string().optional() }),
+    z.object({ ...Base, type: z.literal("video"), src: Source, title: z.string().optional(), caption: z.string().optional() }),
     z.object({
       ...Base, type: z.literal("graph"), title: z.string().optional(),
       xLabel: z.string().optional(), yLabel: z.string().optional(),
       data: z.array(z.object({ x: z.union([z.number(), z.string()]), y: z.number() })).min(1),
       kind: z.enum(["line", "area", "bar"]).default("line"),
     }),
-    z.object({ ...Base, type: z.literal("lottie"), src: z.string().min(1), title: z.string().optional(), caption: z.string().optional(), loop: z.boolean().default(true), autoplay: z.boolean().default(true) }),
+    z.object({ ...Base, type: z.literal("lottie"), src: Source, title: z.string().optional(), caption: z.string().optional(), loop: z.boolean().default(true), autoplay: z.boolean().default(true) }),
     z.object({ ...Base, type: z.literal("callout"), variant: z.enum(["info", "tip", "warning", "success"]).default("info"), title: z.string().optional(), content: z.string() }),
     z.object({ ...Base, type: z.literal("divider") }),
     z.object({ ...Base, type: z.literal("reveal"), title: z.string().min(1), content: z.string(), initiallyOpen: z.boolean().default(false) }),
@@ -38,6 +40,10 @@ export type FlashcardNode = { id: string; type: "flashcard"; front: string; back
 export type SectionNode = { id: string; type: "section"; title?: string; children: CurieNode[] };
 export type CurieNode = MarkdownNode | ImageNode | VideoNode | GraphNode | LottieNode | CalloutNode | DividerNode | RevealNode | QuizNode | SliderNode | FlashcardNode | SectionNode;
 
+export const SUPPORTED_FEATURES = [
+  "markdown", "math", "image", "video", "graph", "lottie", "quiz", "slider", "reveal", "flashcard", "callout", "divider", "section",
+] as const;
+
 export const CurieManifestSchema = z.object({
   format: z.literal("curie"),
   formatVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
@@ -47,7 +53,8 @@ export const CurieManifestSchema = z.object({
   author: z.string().optional(),
   entry: z.literal("document.json"),
   assetsDirectory: z.literal("assets/").default("assets/"),
-  requiredFeatures: z.array(z.enum(["markdown", "math", "image", "video", "graph", "lottie", "quiz", "slider", "reveal", "flashcard", "callout"])).default([]),
+  // Unknown features are accepted here and reported as a compatibility error by the package loader.
+  requiredFeatures: z.array(z.string()).default([]),
 });
 export type CurieManifest = z.infer<typeof CurieManifestSchema>;
 
