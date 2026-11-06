@@ -118,7 +118,7 @@ function Rows<T>({ label, items, onChange, render, create, min = 0, max = 20 }: 
 }) {
   return <div className="flex flex-col gap-1.5">
     <span className="text-xs font-semibold text-base-content/70">{label}</span>
-    {items.map((item, index) => <div key={index} className="flex items-start gap-1.5 rounded-xl bg-base-200/60 p-2">
+    {items.map((item, index) => <div key={index} className="flex items-start gap-1.5 rounded-lg bg-base-200/60 p-2">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">{render(item, (next) => onChange(items.map((current, i) => i === index ? next : current)), index)}</div>
       <button type="button" className="btn btn-ghost btn-xs btn-square" aria-label="Remove" disabled={items.length <= min} onClick={() => onChange(items.filter((_, i) => i !== index))}><X size={12} /></button>
     </div>)}
@@ -177,7 +177,7 @@ function GraphData({ node, onChange }: { node: GraphNode; onChange: (data: Graph
           .map(([x, y]) => ({ x: parseX(x), y: Number(y) }));
         if (rows.length) { onChange(rows); setCsvMode(false); }
       }}>Apply {csv.split("\n").filter((line) => line.trim()).length} rows</button>
-    </> : <div className="overflow-hidden rounded-xl border border-base-300">
+    </> : <div className="overflow-hidden rounded-lg border border-base-300">
       <div className="grid grid-cols-[1fr_1fr_28px] bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/60"><span>x</span><span>y</span><span /></div>
       <div className="max-h-64 overflow-y-auto scroll-thin">
         {node.data.map((point, index) => <div key={index} className="grid grid-cols-[1fr_1fr_28px] items-center gap-1 border-t border-base-300 px-1 py-1">
@@ -225,7 +225,7 @@ function BlockFields({ node, onChange, assets, onUpload, settable }: {
         <Field label={node.type === "video" ? "Video" : "Lottie JSON"}><AssetPicker kind={kind!} value={node.src} assets={assets} onChange={(src) => set({ src })} onUpload={onUpload} /></Field>
         <Field label="Title"><Text value={node.title ?? ""} onChange={(title) => set({ title: title || undefined })} placeholder="Optional" /></Field>
         <Field label="Caption"><Text value={node.caption ?? ""} onChange={(caption) => set({ caption: caption || undefined })} placeholder="Optional" /></Field>
-        {node.type === "lottie" && <div className="flex flex-col gap-2 rounded-xl bg-base-200/60 p-3">
+        {node.type === "lottie" && <div className="flex flex-col gap-2 rounded-lg bg-base-200/60 p-3">
           <Toggle label="Loop" checked={node.loop ?? true} onChange={(loop) => set({ loop })} />
           <Toggle label="Play automatically" checked={node.autoplay ?? true} onChange={(autoplay) => set({ autoplay })} />
         </div>}
@@ -382,11 +382,11 @@ export function BlockInspector({ node, issues, onChange, onRemove, assets, onUpl
   const [advanced, setAdvanced] = useState(false);
   return <div className="flex flex-col gap-4">
     <div className="flex items-center gap-3">
-      <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary"><def.icon size={18} /></span>
+      <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary"><def.icon size={18} /></span>
       <div className="min-w-0 flex-1"><p className="font-display font-bold">{def.label}</p><p className="truncate text-xs text-base-content/55">{def.description}</p></div>
       <button className="btn btn-ghost btn-sm btn-square text-error" aria-label="Delete block" title="Delete block (Del)" onClick={onRemove}><Trash2 size={16} /></button>
     </div>
-    {issues.length > 0 && <div className="flex flex-col gap-1 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs">
+    {issues.length > 0 && <div className="flex flex-col gap-1 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs">
       {issues.map((issue, index) => <p key={index} className="flex gap-2"><AlertTriangle size={14} className="mt-px shrink-0 text-warning" />{issue.message}</p>)}
     </div>}
     <div className="flex flex-col gap-4"><BlockFields node={node} onChange={onChange} assets={assets} onUpload={onUpload} settable={settable} /></div>
@@ -412,7 +412,7 @@ function CoverPicker({ value, assets, onChange, onUpload }: { value?: string; as
   const images = Object.keys(assets).filter((path) => assetKind(path) === "image");
   return <div className="flex flex-col gap-2">
     <button type="button" onClick={() => input.current?.click()} aria-label={value ? "Change cover image" : "Upload a cover image"}
-      className="group relative grid aspect-[16/10] w-full place-items-center overflow-hidden rounded-xl border-2 border-dashed border-base-300 bg-base-200/50 text-base-content/50 transition-colors hover:border-primary/50 hover:text-primary">
+      className="group relative grid aspect-[16/10] w-full place-items-center overflow-hidden rounded-lg border-2 border-dashed border-base-300 bg-base-200/50 text-base-content/50 transition-colors hover:border-primary/50 hover:text-primary">
       {url
         ? <><img src={url} alt="" className="absolute inset-0 size-full object-cover" /><span className="absolute inset-0 grid place-items-center bg-black/40 text-sm font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100">Change cover</span></>
         : value ? <span className="flex flex-col items-center gap-1 text-xs text-warning"><ImageOff size={22} /> Missing file</span>
@@ -475,7 +475,7 @@ export function LessonInspector({ manifest, document, assets, onChange, onUpload
     <Field label="Lesson id" hint="A stable identifier that travels with the exported file, e.g. org.school.physics.density."><Text value={manifest.id} onChange={(id) => onChange({ ...manifest, id })} mono /></Field>
     <div className="grid grid-cols-3 gap-2 text-center">
       {[["Blocks", blocks.length], ["Minutes", readingMinutes(document)], ["Files", Object.keys(assets).length]].map(([label, value]) =>
-        <div key={label} className="rounded-xl bg-base-200/70 p-2"><p className="font-display text-lg font-bold">{value}</p><p className="text-[0.7rem] text-base-content/55">{label}</p></div>)}
+        <div key={label} className="rounded-lg bg-base-200/70 p-2"><p className="font-display text-lg font-bold">{value}</p><p className="text-[0.7rem] text-base-content/55">{label}</p></div>)}
     </div>
     <VariablesEditor document={document} onChange={onVariablesChange} />
   </div>;

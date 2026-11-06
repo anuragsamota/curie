@@ -33,6 +33,8 @@ type LibraryValue = {
   importPaths: (paths: string[]) => Promise<LessonSummary[]>;
   /** Native: points a missing lesson at its new location. */
   relocate: (key: string, path: string) => Promise<void>;
+  /** Adds a lesson made in the app (e.g. by the study assistant). */
+  addLesson: (content: LessonContent) => Promise<LessonSummary>;
   /** Downloads a lesson from a lesson source, or updates the copy already in the library. */
   download: (remote: RemoteLesson) => Promise<LessonSummary | undefined>;
   /** The library's copy of a lesson from a source, if it was downloaded. */
@@ -315,8 +317,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<LibraryValue>(() => ({
     lessons, ready, native, location: backend?.location ?? "", get, load, create, importFiles, importPaths, relocate,
-    download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson,
-  }), [lessons, ready, backend, get, load, create, importFiles, importPaths, relocate, download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson]);
+    addLesson: addContent, download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson,
+  }), [lessons, ready, backend, get, load, create, importFiles, importPaths, relocate, addContent, download, downloaded, save, touch, duplicate, remove, restore, clear, exportLesson]);
 
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;
 }

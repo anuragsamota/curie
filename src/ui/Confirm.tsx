@@ -28,7 +28,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     <dialog ref={dialog} className="modal modal-bottom sm:modal-middle" onCancel={(event) => { event.preventDefault(); close(false); }}>
       {pending && <div className="modal-box animate-pop w-full max-w-none sm:max-w-md">
         <div className="flex gap-4">
-          {pending.danger && <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-error/12 text-error"><AlertTriangle size={20} /></div>}
+          {pending.danger && <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-error/12 text-error"><AlertTriangle size={20} /></div>}
           <div>
             <h3 className="font-display text-lg font-bold">{pending.title}</h3>
             {pending.message && <div className="mt-1.5 text-sm leading-6 text-base-content/70">{pending.message}</div>}

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowUp, BookOpenCheck, Clock3, FileWarning, Layers, ListTree, PenLine, Sparkles, Trophy, X } from "lucide-react";
-import BlockRenderer, { LessonRuntimeProvider } from "../components/BlockRenderer";
+import BlockRenderer, { LessonRuntimeProvider, type QuizDetail } from "../components/BlockRenderer";
 import { LessonVariables } from "../components/variables";
 import { useLessonContent, useLibrary } from "../lib/library";
+import { useProgress } from "../lib/progress";
 import { flattenBlocks, lessonOutline, readingMinutes, type OutlineItem } from "../lib/lesson";
 import { navigate, paths } from "../lib/router";
 import { useSettings } from "../lib/settings";
@@ -96,7 +97,12 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
   const savedProgress = useRef(0);
 
   const onError = useCallback((message: string) => toast.error(message, { title: "Lesson content problem" }), [toast]);
-  const onQuizAnswered = useCallback((id: string, correct: boolean) => setAnswers((all) => id in all && all[id] ? all : { ...all, [id]: correct }), []);
+  const { recordQuiz, markStudied } = useProgress();
+  const lessonTitle = lesson?.manifest.title ?? "";
+  const onQuizAnswered = useCallback((id: string, correct: boolean, detail?: QuizDetail) => {
+    setAnswers((all) => id in all && all[id] ? all : { ...all, [id]: correct });
+    if (detail) recordQuiz({ key: lessonKey, title: lessonTitle }, id, { ...detail, correct });
+  }, [lessonKey, lessonTitle, recordQuiz]);
   const runtime = useMemo(() => ({ onQuizAnswered }), [onQuizAnswered]);
 
   const doc = content?.document;
@@ -113,7 +119,8 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
     if (!found) return;
     savedProgress.current = 0;
     touch(lessonKey, { openedAt: Date.now() });
-  }, [found, lessonKey, touch]);
+    markStudied();
+  }, [found, lessonKey, touch, markStudied]);
 
   // Persist the furthest reading position, throttled to meaningful jumps.
   const storedProgress = lesson?.progress ?? 0;
@@ -149,7 +156,7 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
   if (!library.ready) return skeleton;
   if (!lesson) return <NotFoundPage title="Lesson not found" message="It may have been deleted from this device." />;
   if (loadError) return <div className="flex flex-col items-center px-4 py-24 text-center">
-    <div className="mb-5 grid size-16 place-items-center rounded-3xl bg-warning/15 text-warning"><FileWarning size={30} /></div>
+    <div className="mb-5 grid size-16 place-items-center rounded-2xl bg-warning/15 text-warning"><FileWarning size={30} /></div>
     <h1 className="font-display text-2xl font-bold">Couldn't open “{lesson.manifest.title}”</h1>
     <p className="mt-2 max-w-md break-words text-base-content/60">{loadError}</p>
     <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -181,7 +188,7 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
             {lesson.completedAt && <span className="flex items-center gap-1 rounded-full bg-success/12 px-2.5 py-1 text-success"><BookOpenCheck size={13} /> Completed</span>}
           </div>
           <CoverBanner image={manifest.cover ? content.assets[manifest.cover] : undefined} className="mb-8" />
-          <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">{manifest.title}</h1>
+          <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">{manifest.title}</h1>
           {manifest.description && <p className="mt-4 text-lg leading-8 text-base-content/65">{manifest.description}</p>}
           {manifest.author && <p className="mt-5 flex items-center gap-2.5 text-sm">
             <span className="grid size-8 place-items-center rounded-full bg-primary/12 font-bold text-primary">{manifest.author.charAt(0).toUpperCase()}</span>
@@ -190,12 +197,12 @@ export default function LessonPage({ lessonKey }: { lessonKey: string }) {
         </header>
 
         {lessonDoc.blocks.length === 0
-          ? <div className="rounded-3xl border border-dashed border-base-300 p-10 text-center text-base-content/60">This lesson is empty. <button className="link link-primary" onClick={() => navigate(paths.editor(lesson.key))}>Add some blocks</button>.</div>
+          ? <div className="rounded-2xl border border-dashed border-base-300 p-10 text-center text-base-content/60">This lesson is empty. <button className="link link-primary" onClick={() => navigate(paths.editor(lesson.key))}>Add some blocks</button>.</div>
           : <div className="space-y-7">{lessonDoc.blocks.map((node) => <BlockRenderer key={node.id} node={node} assets={content.assets} onError={onError} />)}</div>}
 
-        <div ref={endRef} className="relative mt-16 rounded-3xl border border-base-300 bg-gradient-to-br from-primary/8 via-base-100 to-secondary/15 p-6 text-center sm:p-10">
+        <div ref={endRef} className="relative mt-16 rounded-2xl border border-base-300 bg-gradient-to-br from-primary/8 via-base-100 to-secondary/15 p-6 text-center sm:p-10">
           {celebrate && !reducedMotion && <Confetti key={celebrate.id} x={celebrate.x} y={celebrate.y} />}
-          <div className={`mx-auto mb-4 grid size-16 place-items-center rounded-3xl bg-secondary text-secondary-content ${celebrate ? "animate-pop" : ""}`}><Trophy size={30} /></div>
+          <div className={`mx-auto mb-4 grid size-16 place-items-center rounded-2xl bg-secondary text-secondary-content ${celebrate ? "animate-pop" : ""}`}><Trophy size={30} /></div>
           <h2 className="font-display text-2xl font-bold">Lesson complete!</h2>
           <p className="mx-auto mt-2 max-w-md text-base-content/65">
             {quizCount > 0

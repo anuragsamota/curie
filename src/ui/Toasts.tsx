@@ -96,7 +96,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
     role={toast.kind === "error" ? "alert" : "status"}
     onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
     onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}
-    className={`pointer-events-auto relative w-full overflow-hidden rounded-2xl border border-base-300 bg-base-100/95 shadow-[0_18px_50px_-20px_rgb(0_0_0/0.45)] backdrop-blur ${toast.leaving ? "toast-leave" : "toast-enter"} ${paused ? "toast-paused" : ""}`}
+    className={`pointer-events-auto relative w-full overflow-hidden rounded-xl border border-base-300 bg-base-100/95 shadow-[0_18px_50px_-20px_rgb(0_0_0/0.45)] backdrop-blur ${toast.leaving ? "toast-leave" : "toast-enter"} ${paused ? "toast-paused" : ""}`}
   >
     <div className="flex items-start gap-3 p-3.5 pr-2">
       <Icon size={20} className={`mt-0.5 shrink-0 ${tone}`} aria-hidden="true" />

@@ -1,37 +1,25 @@
-// The Curie mark: an open orbit forming a "C" around a radium-green nucleus, with one electron at the
-// opening. Keep in sync with public/favicon.svg.
+// The Curie mark: an open orbit that reads as a lowercase "c", with one electron closing the gap.
+// Flat colours so it stays crisp at 16 px. Keep in sync with public/favicon.svg and src-tauri/icons/source.svg.
 
-import { useId } from "react";
+export const LOGO_COLORS = { tile: "oklch(50% 0.2 266)", orbit: "#ffffff", electron: "oklch(86% 0.13 168)" };
+
+/** The arc runs from 45° to 315° (gap on the right); the electron sits at 0°. */
+const ORBIT = "M27.42 12.58 A10.5 10.5 0 1 0 27.42 27.42";
 
 export function LogoMark({ size = 36, animated = false, className = "" }: { size?: number; animated?: boolean; className?: string }) {
-  // Unique gradient ids per instance: a gradient defined inside a hidden (display: none) SVG doesn't render elsewhere.
-  const id = useId();
-  const bg = `${id}-bg`;
-  const glow = `${id}-glow`;
   return <svg width={size} height={size} viewBox="0 0 40 40" className={className} aria-hidden="true">
-    <defs>
-      <linearGradient id={bg} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="oklch(46% 0.22 283)" />
-        <stop offset="1" stopColor="oklch(33% 0.17 292)" />
-      </linearGradient>
-      <radialGradient id={glow}>
-        <stop offset="0" stopColor="oklch(92% 0.2 128)" stopOpacity="0.9" />
-        <stop offset="1" stopColor="oklch(92% 0.2 128)" stopOpacity="0" />
-      </radialGradient>
-    </defs>
-    <rect width="40" height="40" rx="12" fill={`url(#${bg})`} />
-    <circle cx="20" cy="20" r="9" fill={`url(#${glow})`} className={animated ? "animate-glow" : ""} />
-    <g className={animated ? "animate-orbit" : ""} style={{ transformOrigin: "20px 20px" }}>
-      <path d="M28.4 13.6 A11 11 0 1 0 28.4 26.4" fill="none" stroke="oklch(91% 0.19 128)" strokeWidth="3.4" strokeLinecap="round" />
-      <circle cx="29.2" cy="13" r="2.6" fill="oklch(84% 0.14 66)" />
+    <rect width="40" height="40" rx="11" fill={LOGO_COLORS.tile} />
+    <path d={ORBIT} fill="none" stroke={LOGO_COLORS.orbit} strokeWidth="4.2" strokeLinecap="round" />
+    {/* Animated, the electron circles the orbit; still, it closes the "c". */}
+    <g className={animated ? "animate-electron" : ""} style={{ transformOrigin: "20px 20px" }}>
+      <circle cx="30.5" cy="20" r="2.7" fill={LOGO_COLORS.electron} />
     </g>
-    <circle cx="20" cy="20" r="3.6" fill="oklch(93% 0.19 128)" />
   </svg>;
 }
 
 export function Logo({ collapsed = false }: { collapsed?: boolean }) {
-  return <span className="flex items-center gap-2.5">
-    <LogoMark size={34} />
-    {!collapsed && <span className="font-display text-[1.45rem] font-bold leading-none tracking-tight">curie</span>}
+  return <span className="flex items-center gap-2">
+    <LogoMark size={30} />
+    {!collapsed && <span className="font-display text-[1.3rem] font-semibold leading-none tracking-[-0.04em]">curie</span>}
   </span>;
 }

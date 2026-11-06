@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Check, Copy, Database, FolderGit2, Keyboard, Monitor, Moon, Palette, Plus, RotateCcw, Sparkles, Sun, Trash2, Volume2 } from "lucide-react";
+import { BrainCircuit, Check, Copy, Database, FolderGit2, Keyboard, Monitor, Moon, Palette, Plus, RotateCcw, Sparkles, Sun, Trash2, Volume2 } from "lucide-react";
+import { useAssistant } from "../ai/assistant";
 import { useLibrary } from "../lib/library";
+import { useProgress } from "../lib/progress";
+import { useNotes } from "../rag/notes";
 import { formatBytes } from "../lib/lesson";
 import { useSettings, type Settings } from "../lib/settings";
 import { playSound, useSound } from "../lib/sound";
 import { DEFAULT_SOURCES, parseSource, sourceLabel } from "../lib/sources";
+import { AiSettings } from "../ui/AiSettings";
 import { useConfirm } from "../ui/Confirm";
 import { LogoMark } from "../ui/Logo";
 import { useToast } from "../ui/Toasts";
@@ -13,13 +17,14 @@ import { useToast } from "../ui/Toasts";
 const SECTIONS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "motion", label: "Motion & sound", icon: Sparkles },
+  { id: "ai", label: "AI assistant", icon: BrainCircuit },
   { id: "sources", label: "Lesson sources", icon: FolderGit2 },
   { id: "data", label: "Library & data", icon: Database },
   { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
 ] as const;
 
 function Section({ id, title, description, children }: { id: string; title: string; description: string; children: ReactNode }) {
-  return <section id={id} className="scroll-mt-24 rounded-3xl border border-base-300 bg-base-100 p-5 sm:p-7">
+  return <section id={id} className="scroll-mt-24 rounded-2xl border border-base-300 bg-base-100 p-5 sm:p-7">
     <h2 className="font-display text-xl font-bold">{title}</h2>
     <p className="mt-1 text-sm text-base-content/60">{description}</p>
     <div className="mt-6 divide-y divide-base-300/70">{children}</div>
@@ -34,9 +39,9 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 }
 
 function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; icon?: typeof Sun }[]; onChange: (value: T) => void; label: string }) {
-  return <div role="radiogroup" aria-label={label} className="inline-flex rounded-2xl bg-base-200 p-1">
+  return <div role="radiogroup" aria-label={label} className="inline-flex rounded-xl bg-base-200 p-1">
     {options.map((option) => <button key={option.value} role="radio" aria-checked={value === option.value} onClick={() => onChange(option.value)}
-      className={`press flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-sm font-medium transition-all ${value === option.value ? "bg-base-100 text-base-content shadow-sm" : "text-base-content/60 hover:text-base-content"}`}>
+      className={`press flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all ${value === option.value ? "bg-base-100 text-base-content shadow-sm" : "text-base-content/60 hover:text-base-content"}`}>
       {option.icon && <option.icon size={15} />}{option.label}
     </button>)}
   </div>;
@@ -84,7 +89,7 @@ function SourcesSettings() {
 }
 
 function ThemePreview({ mode }: { mode: "light" | "dark" }) {
-  return <div data-theme={`curie-${mode}`} className="flex h-20 w-full gap-1.5 overflow-hidden rounded-xl border border-base-300 bg-base-100 p-2">
+  return <div data-theme={`curie-${mode}`} className="flex h-20 w-full gap-1.5 overflow-hidden rounded-lg border border-base-300 bg-base-100 p-2">
     <div className="w-5 rounded-md bg-base-200" />
     <div className="flex flex-1 flex-col gap-1.5">
       <div className="h-2 w-3/4 rounded bg-base-content/70" />
@@ -95,8 +100,11 @@ function ThemePreview({ mode }: { mode: "light" | "dark" }) {
   </div>;
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ section }: { section?: string }) {
   const { settings, update, reset, mode } = useSettings();
+  const notes = useNotes();
+  const progress = useProgress();
+  const assistant = useAssistant();
   const { lessons, clear, native, location } = useLibrary();
   const confirm = useConfirm();
   const toast = useToast();
@@ -108,6 +116,13 @@ export default function SettingsPage() {
     void navigator.storage?.estimate?.().then(setStorage).catch(() => undefined);
   }, [lessons]);
 
+  // Links like #/settings/ai open the page at that section.
+  useEffect(() => {
+    if (!section) return;
+    const timer = setTimeout(() => document.getElementById(section)?.scrollIntoView({ block: "start" }), 60);
+    return () => clearTimeout(timer);
+  }, [section]);
+
   const assetBytes = lessons.reduce((sum, lesson) => sum + lesson.size, 0);
 
   return <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 lg:py-10">
@@ -117,7 +132,7 @@ export default function SettingsPage() {
     <div className="mt-8 grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
       <nav className="sticky top-6 hidden h-fit flex-col gap-1 lg:flex" aria-label="Settings sections">
         {SECTIONS.map((section) => <a key={section.id} href={`#/settings`} onClick={(event) => { event.preventDefault(); document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" }); }}
-          className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-base-content/65 transition-colors hover:bg-base-200 hover:text-base-content">
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-base-content/65 transition-colors hover:bg-base-200 hover:text-base-content">
           <section.icon size={16} /> {section.label}
         </a>)}
       </nav>
@@ -130,7 +145,7 @@ export default function SettingsPage() {
               {([{ value: "system", label: "System", icon: Monitor }, { value: "light", label: "Light", icon: Sun }, { value: "dark", label: "Dark", icon: Moon }] as const).map((option) => {
                 const selected = settings.theme === option.value;
                 return <button key={option.value} role="radio" aria-checked={selected} onClick={() => set("theme")(option.value)}
-                  className={`press group relative flex flex-col gap-2 rounded-2xl border-2 p-2 text-left transition-colors ${selected ? "border-primary" : "border-base-300 hover:border-base-content/25"}`}>
+                  className={`press group relative flex flex-col gap-2 rounded-xl border-2 p-2 text-left transition-colors ${selected ? "border-primary" : "border-base-300 hover:border-base-content/25"}`}>
                   {option.value === "system"
                     ? <div className="grid grid-cols-2 gap-1"><ThemePreview mode="light" /><ThemePreview mode="dark" /></div>
                     : <ThemePreview mode={option.value} />}
@@ -174,6 +189,10 @@ export default function SettingsPage() {
           </Row>
         </Section>
 
+        <Section id="ai" title="AI assistant" description="The study assistant answers questions from your notes, creates lessons and quizzes, and guides your revision. Choose where it runs.">
+          <AiSettings />
+        </Section>
+
         <Section id="sources" title="Lesson sources" description="GitHub repositories whose .curie lessons are listed in Explore. Lessons are only downloaded when you choose them, and removing a source keeps the lessons you downloaded.">
           <SourcesSettings />
         </Section>
@@ -195,6 +214,16 @@ export default function SettingsPage() {
           </Row>
           <Row label="Ask before deleting" hint="Show a confirmation before a lesson is deleted. You can always undo from the notification.">
             <input type="checkbox" className="toggle toggle-primary" checked={settings.confirmDeletes} onChange={(event) => set("confirmDeletes")(event.target.checked)} />
+          </Row>
+          <Row label="Clear study data" hint="Delete your notes, quiz history and the assistant conversation from this device. Lessons and API keys are kept.">
+            <button className="btn btn-sm btn-ghost border-base-300" disabled={!notes.notes.length && !Object.keys(progress.data.quizzes).length && !assistant.turns.length} onClick={async () => {
+              if (!(await confirm({ title: "Clear study data?", message: "Your notes, quiz history, streak and the assistant chat are deleted from this device. This can't be undone.", confirmLabel: "Clear", danger: true }))) return;
+              for (const note of notes.notes) await notes.remove(note.id);
+              progress.reset();
+              assistant.reset();
+              play("delete");
+              toast.info("Study data was cleared.");
+            }}><Trash2 size={15} /> Clear</button>
           </Row>
           <Row label="Reset preferences" hint="Restore every setting on this page to its default.">
             <button className="btn btn-sm btn-ghost border-base-300" onClick={async () => {
@@ -222,11 +251,11 @@ export default function SettingsPage() {
           </Row>)}
         </Section>
 
-        <div className="flex items-center gap-4 rounded-3xl bg-base-200/60 p-5">
+        <div className="flex items-center gap-4 rounded-2xl bg-base-200/60 p-5">
           <LogoMark size={44} />
           <div className="text-sm">
-            <p className="font-display text-base font-bold">Curie <span className="font-sans text-sm font-normal text-base-content/50">0.2.0</span></p>
-            <p className="text-base-content/60">Portable interactive lessons · package format 0.1.0</p>
+            <p className="font-display text-base font-bold">Curie <span className="font-sans text-sm font-normal text-base-content/50">{__APP_VERSION__}</span></p>
+            <p className="text-base-content/60">Portable interactive lessons · package format 0.2.0</p>
           </div>
         </div>
       </div>

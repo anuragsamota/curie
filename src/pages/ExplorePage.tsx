@@ -57,9 +57,9 @@ function RemoteCard({ lesson, index }: { lesson: RemoteLesson; index: number }) 
   };
   const open = () => { if (local) { play("open"); navigate(paths.lesson(local.key)); } };
 
-  return <div style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }} className="animate-rise flex flex-col rounded-3xl border border-base-300 bg-base-100">
+  return <div style={{ animationDelay: `${Math.min(index, 12) * 40}ms` }} className="animate-rise flex flex-col rounded-2xl border border-base-300 bg-base-100">
     <div className="relative">
-      <LessonCover seed={`${lesson.source}/${lesson.path}`} title={local?.manifest.title ?? lesson.title} image={local?.cover} className="h-32 rounded-t-3xl" />
+      <LessonCover seed={`${lesson.source}/${lesson.path}`} title={local?.manifest.title ?? lesson.title} image={local?.cover} className="h-32 rounded-t-2xl" />
       {local && <span className="badge badge-sm absolute left-3 top-3 gap-1 border-0 bg-black/35 font-semibold text-white backdrop-blur-sm"><Check size={12} /> In your library</span>}
     </div>
     <div className="flex flex-1 flex-col gap-2 p-4 pt-3.5">
@@ -91,7 +91,7 @@ function SourceSection({ source, state, query, onRefresh }: { source: LessonSour
   return <section className="flex flex-col gap-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-base-200 text-base-content/70"><FolderGit2 size={18} /></span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-base-200 text-base-content/70"><FolderGit2 size={18} /></span>
         <div className="min-w-0">
           <p className="font-display truncate font-bold">{sourceLabel(source)}</p>
           <p className="text-xs text-base-content/50">
@@ -105,17 +105,17 @@ function SourceSection({ source, state, query, onRefresh }: { source: LessonSour
       </button>
     </div>
 
-    {state?.error && <div role="alert" className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm">
+    {state?.error && <div role="alert" className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
       <TriangleAlert size={18} className="mt-0.5 shrink-0 text-warning" />
       <div className="flex-1"><p className="font-semibold">Couldn't load this source</p><p className="text-base-content/70">{state.error}</p></div>
       <button className="btn btn-sm btn-ghost" onClick={onRefresh}>Try again</button>
     </div>}
 
     {!state?.catalog && state?.loading
-      ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-60 rounded-3xl" />)}</div>
+      ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="skeleton h-60 rounded-2xl" />)}</div>
       : state?.catalog && (lessons.length
         ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{lessons.map((lesson, index) => <RemoteCard key={lesson.path} lesson={lesson} index={index} />)}</div>
-        : <p className="rounded-2xl bg-base-200/60 px-4 py-6 text-center text-sm text-base-content/55">
+        : <p className="rounded-xl bg-base-200/60 px-4 py-6 text-center text-sm text-base-content/55">
           {query ? `No lessons here match “${query}”.` : "This repository has no .curie files yet."}
         </p>)}
   </section>;
@@ -146,7 +146,7 @@ export default function ExplorePage() {
 
     {settings.sources.length === 0
       ? <div className="flex flex-col items-center px-4 py-16 text-center">
-        <span className="mb-5 grid size-16 place-items-center rounded-3xl bg-secondary/25 text-primary"><Compass size={30} /></span>
+        <span className="mb-5 grid size-16 place-items-center rounded-2xl bg-secondary/25 text-primary"><Compass size={30} /></span>
         <h2 className="font-display text-2xl font-bold">No lesson sources</h2>
         <p className="mt-2 max-w-md text-base-content/60">Add a GitHub repository that contains .curie files to browse its lessons here.</p>
         <a href={paths.settings} onClick={() => setTimeout(() => document.getElementById("sources")?.scrollIntoView(), 120)} className="btn btn-primary mt-6 press">Add a source</a>

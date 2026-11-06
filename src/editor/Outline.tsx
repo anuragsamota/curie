@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronRight, GripVertical, Plus } from "lucide-react";
 import type { CurieNode } from "../curie/types";
+import { useIsPhone } from "../lib/media";
 import { useSound } from "../lib/sound";
+import { Sheet } from "../ui/Sheet";
 import { BLOCKS, BLOCK_GROUPS, blockSummary } from "./blocks";
 import type { Location } from "./tree";
 
-/** A popover grid of block types. */
+/** A popover grid of block types (a bottom sheet on phones). */
 export function AddBlockMenu({ onAdd, trigger, align = "start", up = false }: { onAdd: (type: CurieNode["type"]) => void; trigger: (open: () => void) => ReactNode; align?: "start" | "end" | "center"; up?: boolean }) {
   const [open, setOpen] = useState(false);
   const [placeUp, setPlaceUp] = useState(up);
   const root = useRef<HTMLDivElement>(null);
   const play = useSound();
+  const phone = useIsPhone();
   const toggle = () => {
     // Open upwards when there isn't room for the ~470px menu below the trigger.
     const rect = root.current?.getBoundingClientRect();
@@ -22,26 +25,30 @@ export function AddBlockMenu({ onAdd, trigger, align = "start", up = false }: { 
   useEffect(() => {
     if (!open) return;
     root.current?.querySelector<HTMLButtonElement>("[data-block-option]")?.focus({ preventScroll: true });
+    if (phone) return;
     const close = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [open]);
+  }, [open, phone]);
   const position = align === "end" ? "right-0" : align === "center" ? "left-1/2 -translate-x-1/2" : "left-0";
+  const choices = (large: boolean) => BLOCK_GROUPS.map((group) => <div key={group} className="mb-1 last:mb-0">
+    <p className="px-2 pb-1 pt-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-base-content/45">{group}</p>
+    <div className="grid grid-cols-2 gap-1">
+      {Object.entries(BLOCKS).filter(([, def]) => def.group === group).map(([type, def]) =>
+        <button key={type} data-block-option role="menuitem" type="button" className={`flex items-center gap-2.5 rounded-lg text-left outline-none transition-colors hover:bg-base-200 focus:bg-base-200 ${large ? "p-2.5" : "p-2"}`}
+          onClick={() => { setOpen(false); onAdd(type as CurieNode["type"]); }}>
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-secondary text-secondary-content"><def.icon size={16} /></span>
+          <span className="min-w-0"><span className="block text-sm font-medium">{def.label}</span><span className="block truncate text-[0.7rem] text-base-content/50">{def.description}</span></span>
+        </button>)}
+    </div>
+  </div>);
   return <div ref={root} className="relative" onKeyDown={(event) => event.key === "Escape" && setOpen(false)} onClick={(event) => event.stopPropagation()}>
     {trigger(toggle)}
-    {open && <div role="menu" className={`animate-menu absolute z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-base-300 bg-base-100 p-2 text-base-content shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45)] ${position} ${placeUp ? "bottom-full mb-2" : "mt-2"}`}>
-      {BLOCK_GROUPS.map((group) => <div key={group} className="mb-1 last:mb-0">
-        <p className="px-2 pb-1 pt-1.5 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-base-content/45">{group}</p>
-        <div className="grid grid-cols-2 gap-1">
-          {Object.entries(BLOCKS).filter(([, def]) => def.group === group).map(([type, def]) =>
-            <button key={type} data-block-option role="menuitem" type="button" className="flex items-center gap-2.5 rounded-xl p-2 text-left outline-none transition-colors hover:bg-base-200 focus:bg-base-200"
-              onClick={() => { setOpen(false); onAdd(type as CurieNode["type"]); }}>
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-base-200 text-primary"><def.icon size={16} /></span>
-              <span className="min-w-0"><span className="block text-sm font-medium">{def.label}</span><span className="block truncate text-[0.7rem] text-base-content/50">{def.description}</span></span>
-            </button>)}
-        </div>
+    {open && (phone
+      ? <Sheet title="Add a block" onClose={() => setOpen(false)}><div role="menu">{choices(true)}</div></Sheet>
+      : <div role="menu" className={`animate-menu absolute z-50 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-base-300 bg-base-100 p-2 text-base-content shadow-[0_24px_60px_-20px_rgb(0_0_0/0.45)] ${position} ${placeUp ? "bottom-full mb-2" : "mt-2"}`}>
+        {choices(false)}
       </div>)}
-    </div>}
   </div>;
 }
 
@@ -91,7 +98,7 @@ function Tree({ nodes, parentId, depth, selected, issueIds, onSelect, onMove, on
           }}
           onDrop={drop}
           onClick={() => onSelect(node.id)}
-          className={`group relative flex cursor-pointer items-center gap-1.5 rounded-xl py-1.5 pr-2 text-sm transition-colors ${selected === node.id ? "bg-primary/12 text-primary" : "hover:bg-base-200"} ${drag.id === node.id ? "opacity-40" : ""}`}
+          className={`group relative flex cursor-pointer items-center gap-1.5 rounded-lg py-1.5 pr-2 text-sm transition-colors ${selected === node.id ? "bg-primary/12 text-primary" : "hover:bg-base-200"} ${drag.id === node.id ? "opacity-40" : ""}`}
           style={{ paddingLeft: `${0.25 + depth * 1}rem` }}
         >
           <GripVertical size={14} className="shrink-0 cursor-grab text-base-content/25 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />

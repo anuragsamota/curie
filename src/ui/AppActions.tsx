@@ -76,7 +76,7 @@ export function AppActionsProvider({ children }: { children: ReactNode }) {
     <dialog ref={dialog} className="modal modal-bottom sm:modal-middle">
       <form className="modal-box animate-pop w-full max-w-none sm:max-w-lg" onSubmit={submit}>
         <div className="mb-5 flex items-center gap-3">
-          <div className="grid size-11 place-items-center rounded-2xl bg-secondary text-secondary-content"><Sparkles size={20} /></div>
+          <div className="grid size-11 place-items-center rounded-xl bg-secondary text-secondary-content"><Sparkles size={20} /></div>
           <div>
             <h3 className="font-display text-xl font-bold">New lesson</h3>
             <p className="text-sm text-base-content/60">You can change all of this later in the editor.</p>

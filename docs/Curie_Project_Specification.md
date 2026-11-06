@@ -1,15 +1,15 @@
 # Curie — Project Specification
 
 **Document type:** Product and technical specification  
-**Version:** 1.0  
-**Status:** Baseline specification for the current prototype and planned product  
-**Last updated:** 26 October 2026
+**Version:** 2.0  
+**Status:** Specification for Curie 0.3 (shipping on web, Linux, Windows and Android) and its roadmap  
+**Last updated:** 31 October 2026
 
 ---
 
 ## 1. Project Overview
 
-Curie is a cross-platform learning application for creating, viewing, and sharing rich interactive lessons. Lessons are assembled from portable, structured content blocks—such as Markdown, mathematical notation, images, videos, graphs, animations, quizzes, sliders, reveals, and flashcards—rather than being authored as arbitrary executable code.
+Curie is a cross-platform learning application for creating, viewing, and sharing rich interactive lessons, and for studying from your own notes with an AI study assistant. Lessons are assembled from portable, structured content blocks—such as Markdown, mathematical notation, images, videos, graphs, animations, quizzes, sliders, reveals, and flashcards—rather than being authored as arbitrary executable code.
 
 The product aims to make learning feel visual, active, and approachable, taking inspiration from the polished, guided learning experience of products such as Brilliant without copying any one product's interface or interaction design.
 
@@ -25,6 +25,9 @@ A core product principle is **portable lessons**: a lesson should be packaged wi
 6. Keep the implementation modular and maintainable, with room to add lesson components and authoring workflows.
 7. Build web-first, while retaining a practical path to desktop packaging and possible mobile clients.
 8. Prioritize reliable, accessible learning components over complex simulations in the initial releases.
+9. Help students learn from their own material: import notes, ask questions grounded in them, and turn them into lessons and practice quizzes.
+10. Assess progress and give specific, encouraging guidance on what to study next.
+11. Stay local-first and provider-neutral: notes, progress and lessons live on the device, and the AI runs on the provider the student chooses, including local models through Ollama.
 
 ### 1.2 Non-goals for the initial release
 
@@ -34,7 +37,8 @@ A core product principle is **portable lessons**: a lesson should be packaged wi
 - A general-purpose 3D simulation engine or advanced physics sandbox.
 - Lesson-defined themes or arbitrary CSS.
 - A requirement that every lesson work offline if it deliberately references remote media.
-- A complete authoring studio in the first prototype milestone.
+- A hosted Curie AI service or Curie accounts. The assistant uses the student's own provider key or a local model.
+- Cloud sync of notes, progress or lessons (a future, opt-in decision).
 
 ---
 
@@ -50,6 +54,10 @@ Learners should be able to:
 - Answer quizzes and see feedback.
 - Use lightweight controls such as sliders, reveals, and flashcards.
 - Switch the app between light and dark mode without changing lesson content.
+- Add their own notes (PDF, text, Markdown, pasted text, photos of handwritten pages) and search them.
+- Ask an AI study assistant questions answered from their notes, with citations.
+- Generate interactive lessons, practice quizzes and flashcards from their notes or existing lessons.
+- See their progress (completion, first-try quiz accuracy, streak, questions to review) and get guidance.
 
 ### 2.2 Lesson creators and educators
 
@@ -59,6 +67,8 @@ Creators should eventually be able to:
 - Preview the lesson in the same renderer used by learners.
 - Validate the lesson package before sharing.
 - Export a single `.curie` file that contains its manifest, document, and assets.
+- Ask the assistant for a first draft of a lesson and refine it in the editor.
+- Publish lessons in a GitHub repository that students browse from Explore.
 
 ### 2.3 Developers and integrators
 
@@ -96,66 +106,75 @@ Interactive blocks should support keyboard use where appropriate, visible focus,
 
 Invalid packages, missing assets, unsupported features, and corrupt media should produce actionable errors or component-level fallbacks rather than crashing the entire app.
 
+### 3.7 Local-first and private
+
+Notes, progress, lessons and settings are stored on the device. Nothing leaves it unless the student uses a feature that needs a network (Explore downloads, remote media, or the AI assistant), and the app says what is sent and where.
+
+### 3.8 Provider-neutral AI
+
+The assistant is defined by a provider-neutral conversation and tool model. Claude, OpenAI-compatible services and Ollama are adapters behind the same interface, so features work the same on every provider that supports tool calling.
+
+### 3.9 AI output is content, not code
+
+Anything the assistant creates is ordinary lesson data. Generated lessons pass the same schema, semantic and logic validation as imported lessons, and chat replies are rendered as Markdown and math only.
+
 ---
 
 ## 4. Platform and Technology
 
-### 4.1 Initial technology stack
+### 4.1 Technology stack
 
 | Layer | Technology | Responsibility |
 |---|---|---|
-| UI framework | React | Component-based interface and rendering |
+| UI framework | React 19 | Component-based interface and rendering |
 | Language | TypeScript | Static typing and maintainable contracts |
-| Build tooling | Vite | Development server and production frontend build |
-| Styling | Tailwind CSS v4 | Utility-first styling |
-| UI component system | daisyUI v5 | Base UI patterns and light/dark themes |
-| Markdown | `react-markdown` and `remark-gfm` | Markdown and GitHub-flavored Markdown |
-| Mathematical notation | `remark-math`, `rehype-katex`, KaTeX | Inline and display equations |
-| Charts | Recharts | Line, area, and bar graphs |
-| Package archive | JSZip | Read and write ZIP-based `.curie` packages |
-| Validation | Zod | Runtime validation of manifests and block data |
-| Animation | `lottie-react` | Rendering JSON-format Lottie animations |
-| Desktop direction | Tauri 2 | Planned native desktop shell |
+| Build tooling | Vite 6 | Development server, production build, Web Workers |
+| Styling | Tailwind CSS v4 + daisyUI v5 | Utilities, components and the Curie light/dark themes |
+| Typography | Geist and Geist Mono (self-hosted) | Interface, lesson and code text, offline |
+| Markdown and math | `react-markdown`, `remark-gfm`, `remark-math`, `rehype-katex` | Lesson text and chat replies |
+| Charts | Recharts | Data graphs and function plots |
+| Package archive | JSZip (in a Web Worker) | Read and write `.curie` packages off the UI thread |
+| Validation | Zod | Runtime validation of lessons, tool inputs and settings |
+| Animation | `lottie-react` | JSON-format Lottie animations |
+| Notes | pdf.js (legacy build) | Local PDF text extraction |
+| AI | Anthropic TypeScript SDK; plain HTTP for OpenAI-compatible APIs and Ollama | The study assistant's providers |
+| Native shell | Tauri 2 (fs, dialog and http plugins) | Desktop and Android apps, file access, native HTTP |
+| Testing | Vitest, Testing Library (jsdom), Playwright | Unit, component and browser tests |
 
-Dependency versions must be kept consistent with the project's package manifest and upgraded deliberately. The stack above describes the intended/current prototype architecture, not a claim that every deployment target has already been validated.
+### 4.2 Delivery
 
-### 4.2 Delivery strategy
-
-1. **Web prototype first:** establish the lesson format, renderer, responsive shell, and import/export behavior.
-2. **Desktop packaging:** integrate Tauri 2 after the web app's workflows are stable.
-3. **Progressive offline support:** make bundled lesson assets work offline and evaluate service-worker caching for the web client.
-4. **Future mobile clients:** consider a mobile packaging strategy only after the content format and component contracts stabilize.
+1. **Web:** a static build that runs in current browsers. Data lives in browser storage.
+2. **Desktop:** Tauri builds for Linux (deb, rpm, AppImage) and Windows (NSIS installer). macOS is supported by Tauri but not yet built or tested.
+3. **Android:** a Tauri build for arm64 (minimum Android 7, API 24), signed with the project's release key.
+4. **iOS:** not planned until there is demand and a signing setup.
 
 ### 4.3 Supported environments
 
-The web client should work in current evergreen browsers on desktop and mobile-sized viewports. Desktop builds should target operating systems supported by Tauri 2 once the native wrapper is configured and tested.
-
-The prototype's Tauri scaffolding does not, by itself, mean signed installers or production-ready desktop releases are complete.
-
----
+The web client targets current evergreen browsers at phone, tablet and desktop sizes. Native builds use the system webview: WebKitGTK on Linux, WebView2 on Windows, Android System WebView on Android.
 
 ## 5. Application Experience
 
 ### 5.1 Main application shell
 
-The application shell should provide:
-- Curie branding and clear application navigation.
-- A lesson viewing area with readable line lengths and spacing.
-- A lesson import action.
-- An export action for the current lesson when export is available.
-- A light/dark theme toggle.
-- Clear loading, empty, success, and error states.
-- Responsive layout behavior for narrow and wide screens.
+| Area | Wide screens | Phones |
+|---|---|---|
+| Navigation | Collapsible sidebar: New lesson, Import, Library, Explore, Study (Assistant, Notes, Progress), Settings, Continue learning, theme and sound toggles | Top bar (logo, import, theme, sound) and a bottom tab bar: Library, Explore, Create, Study, Settings |
+| Library | Card grid or list with search, sort, cover art, progress | Same, single column |
+| Lesson | Reading progress bar, "On this page" outline panel | Outline in a sheet |
+| Editor | Outline/files panel, canvas, inspector panel | Full-width canvas, bottom tool bar, panels in bottom sheets |
+| Study | Tabs for Assistant, Notes and Progress | Same, with the composer above the tab bar |
+| Notifications | Floating toasts bottom right, progress toasts for long tasks | Same, above the tab bar |
 
-The interface should feel focused and uncluttered. The product may take general inspiration from modern interactive learning platforms, but must use its own layout, visual identity, and component details.
+The interface should feel focused and uncluttered. Curie takes general inspiration from modern interactive learning products, but uses its own layout, visual identity and components.
 
-### 5.2 Theme behavior
+### 5.2 Theme and design system
 
-- The app provides light and dark modes.
-- The selected mode is persisted locally when possible.
-- Lessons inherit the active app theme.
-- The `.curie` manifest and document schema do not accept lesson-level theme overrides.
-- Components must use theme-aware design tokens rather than hard-coded colors wherever practical.
+- Light and dark themes, following the system or a manual choice; the choice is saved. Lessons always inherit the app theme and cannot override it.
+- **Palette:** cool neutral surfaces; one accent (electric blue, `oklch(54% 0.21 266)` in light, `oklch(71% 0.155 268)` in dark) for actions, focus and progress; a mint highlight (`oklch(78% 0.13 168)`) used sparingly. Semantic colours for info, success, warning and error. All colours are theme tokens; components don't hard-code colours.
+- **Type:** Geist for interface and lessons (headings with tight tracking), Geist Mono for code and formulas. Lesson text size is adjustable (small, default, large).
+- **Shape and depth:** corner radii of 8, 12 and 16 px for small controls, inner elements and cards; hairline borders and minimal shadow.
+- **Logo:** a blue tile with a white open orbit that reads as a lowercase "c", and a mint electron closing the gap. The same mark is used for the favicon, desktop icons and Android adaptive icons (foreground mark on a solid brand background).
+- **Motion:** short, purposeful transitions and sounds, all disabled by the reduce-motion and sound settings.
 
 ### 5.3 Lesson viewing
 
@@ -176,6 +195,27 @@ Users should be able to select a `.curie` package from their device, import it, 
 Import should validate the package before making it the active lesson. Errors should identify the missing or invalid file and provide a useful next step.
 
 Export should preserve the manifest, document, and package assets. If the user has not edited the lesson or its assets, import/export should not silently drop files.
+
+Large packages are unpacked and packed in a Web Worker, and native file reads happen in chunks, so the interface stays responsive. Long operations show a progress notification.
+
+### 5.5 Lesson editor
+
+- A block canvas that uses the production renderer, with Edit and Preview modes, undo/redo, autosave and a problems list.
+- Blocks can be added between others, moved, duplicated and deleted; sections can be nested; files can be uploaded, dropped and reused.
+- An inspector edits the selected block or the lesson's details (title, description, author, id, cover image, variables).
+- On phones the canvas is full width; the tools sit in a bottom bar (Outline, Undo, Add, Redo, Block or Lesson), the selected block shows its actions in a row inside it, and panels and pickers open as bottom sheets.
+
+### 5.6 Explore and lesson sources
+
+Explore lists `.curie` files from public GitHub repositories ("lesson sources"). Only the file list is fetched until the student downloads a lesson; a downloaded lesson shows Open, or Update when the file changed. Sources are managed in Settings, and a default source can be removed and restored. A repository may include `curie-index.json` with titles and descriptions.
+
+### 5.7 Touch and sizing
+
+On touch screens, compact controls grow to at least 36–44 px, form fields use 16 px text (avoiding browser zoom), menus become action sheets, and pickers become bottom sheets. Content respects safe areas (status bar, notch, home indicator and keyboard).
+
+### 5.8 Native storage
+
+The desktop and Android apps keep a Curie folder in the app data directory: `library.json` (lesson index and progress), `settings.json`, `keys.json` (AI keys), `progress.json`, `assistant-chat.json`, `lessons/` (lessons created or downloaded in Curie) and `notes/`. Imported lessons stay where the student keeps them and are read from their path.
 
 ---
 
@@ -232,7 +272,9 @@ Required fields:
 - `assetsDirectory`: asset directory, currently `assets/`.
 - `requiredFeatures`: list of features required to render the lesson correctly.
 
-Optional metadata may include a description and author. The schema must not include a theme override.
+Optional metadata may include a description, an author, and `cover`: a path inside `assets/` to an image shown on library cards and at the top of the lesson. Readers that don't know `cover` ignore it; a missing cover file falls back to generated art. The schema must not include a theme override.
+
+The current `formatVersion` is `0.2.0`. Packages written as `0.1.0` remain valid.
 
 ### 6.4 Document
 
@@ -383,342 +425,367 @@ Lessons using any of this list `variables` (and the new block types) in `require
 
 ---
 
-## 8. Architecture
+## 8. Study Notes and Retrieval
 
-### 8.1 High-level modules
+Students add the notes they study from. Curie turns them into searchable passages so the assistant can ground its answers, lessons and quizzes in the student's own material.
+
+### 8.1 Supported inputs
+
+| Input | How it is read | Leaves the device? |
+|---|---|---|
+| PDF | Text layer extracted with pdf.js, page by page | No |
+| Text, Markdown, CSV, TeX, JSON, HTML | Read as text (HTML reduced to its text) | No |
+| Pasted text | Saved as a note with a name | No |
+| Photos of notes (PNG, JPEG, WebP, GIF) | Shrunk to at most 2000 px, then transcribed to Markdown by the configured AI model | Yes, to the chosen AI provider |
+
+Scanned PDFs without a text layer are reported with a suggestion to add photos of their pages instead. Word documents are not read yet; students can save them as PDF.
+
+### 8.2 Processing
+
+1. Extract text, keeping page numbers for PDFs.
+2. Split into passages of about 1,100 characters along paragraph and sentence boundaries, carrying about 180 characters of overlap so ideas cut at a boundary stay findable. Each passage keeps the page it starts on.
+3. Index passages with BM25 (k1 = 1.2, b = 0.75) over lowercase, accent-folded words, without common stopwords and with light English stemming. The note's name is indexed with each passage.
+
+### 8.3 Storage
+
+Web: the IndexedDB database `curie-notes`. Native: one JSON file per note in `<Curie folder>/notes/`. A note stores its name, kind, size, page count, extracted text and passages. The index is rebuilt in memory at start-up.
+
+### 8.4 Search and context
+
+- **Manual search** on the Notes tab shows the best passages with their note and page; it works without any AI provider.
+- **Automatic excerpts:** when enabled, each question to the assistant is sent with up to four matching passages, keeping only those within 40% of the best match's score, wrapped in a clearly labelled `<note_excerpts>` block.
+- **Tool search:** with tools enabled, the model searches the notes itself (`search_notes`) and can read a whole note (`read_note`). Answers cite passages as [1], [2] with the note name.
+
+### 8.5 Planned improvements
+
+- Hybrid search with local embeddings, keeping BM25 as the offline baseline.
+- OCR for scanned PDFs, Word documents, and slide decks.
+- Collections (per subject or course) to scope search, lessons and quizzes.
+- Showing the exact passage behind each citation.
+
+---
+
+## 9. AI Study Assistant
+
+### 9.1 Capabilities
+
+- Answer questions from the student's notes, citing what was used, and say clearly when the notes don't cover something.
+- Create interactive lessons, practice quizzes and flashcard sets from notes or existing lessons, saved to the library as ordinary `.curie` lessons.
+- Assess progress and give guidance: what's going well, what to review (specific questions and ideas), and an ordered plan, with an offer to create targeted practice.
+- Summarise a note, and "quiz me" on a lesson or note from their menus.
+
+Entry points: the Assistant tab, quick actions on notes and lessons, and the Progress tab ("Get study guidance", "Practise my weak spots").
+
+### 9.2 Providers
+
+| Provider | Transport | Notes |
+|---|---|---|
+| Claude | Official Anthropic TypeScript SDK, streaming | Claude Opus 5.5 by default; Sonnet 5.5 and Haiku 5.5 selectable. Adaptive thinking with readable summaries, a chosen effort level (low, medium or high), prompt caching of the system prompt, tools and conversation, and server-side refusal fallbacks (`fallbacks: "default"`) on Opus and Sonnet. |
+| OpenAI-compatible | Chat Completions over HTTP, streaming | Presets for OpenAI, OpenRouter, Groq and LM Studio, or any base URL (vLLM, LiteLLM, self-hosted gateways). Streams text, reasoning (`reasoning_content`, `<think>` tags) and function calls. Optional API key. |
+| Ollama | Native `/api/chat`, streaming | On this device or another computer on the network. The context window (`num_ctx`) is set explicitly (8K–64K tokens, default 16K) so the system prompt and excerpts aren't truncated. Model list from `/api/tags`. |
+
+The student picks the provider and model in Settings, can load the provider's model list, and can run a connection test.
+
+### 9.3 The agent loop
+
+- The conversation is provider-neutral: user turns (with optional hidden excerpts), assistant turns (text, reasoning summary, tool calls, and the provider's native content for exact replay) and tool-result turns.
+- Each step streams the model's reply. When it calls tools, each input is validated against the tool's schema before it runs; invalid input is returned to the model as an error to fix. A turn whose tool call is malformed JSON is asked for again (twice at most).
+- Tools of a turn that was refused or cut off at its length limit are never run. Unanswered tool calls (after a stop, refusal or error) get an error result, so the conversation stays valid for the next request.
+- The loop stops after ten tool steps. The student can stop a run at any time.
+- The conversation lives at the app level, so answers keep streaming while the student navigates, and is saved locally. "New chat" clears it.
+
+### 9.4 Tools
+
+| Tool | Effect |
+|---|---|
+| `search_notes` | Best-matching passages with note name, page and id |
+| `list_notes` | The student's notes with ids and sizes |
+| `read_note` | A note's full text, 16,000 characters at a time |
+| `get_progress` | Lessons completed and in progress, first-try accuracy overall and per lesson, streak, and missed questions with the chosen and correct answers |
+| `list_lessons` | Library lessons with keys and reading progress |
+| `read_lesson` | A lesson as text, including quiz answers |
+| `create_lesson` | Builds, validates and saves a new lesson; returns problems to fix instead of saving an invalid one |
+
+All tools except `create_lesson` are read-only. `create_lesson` only adds a lesson, which the student can delete. No tool reaches the network or the file system directly.
+
+### 9.5 Generated lessons
+
+- The tool accepts a deliberately flat block format (one block shape with a `type`) so smaller local models can produce it: Markdown, callout, quiz, flashcard, reveal, divider, section (one level), slider, toggle, choice, live values, function plot and data graph, plus lesson variables.
+- Blocks are converted into the real schema with stable ids (`b3-quiz`, `b2.1-slider`), then checked with the same schema, semantic and logic validation as imported lessons. Problems are returned to the model in terms it can act on.
+- Saved lessons are `formatVersion` `0.2.0`, authored "Curie assistant", with `requiredFeatures` derived from their content.
+- With tools turned off (for models without tool calling), the assistant may write a ```` ```curie-lesson ```` JSON block; the chat shows it as a card with "Save as lesson", using the same validation.
+
+### 9.6 Networking
+
+- **Native apps** send AI requests through Tauri's HTTP plugin: no CORS restrictions, plain-HTTP hosts on the local network (Ollama), and streamed responses. Because students choose their own endpoints, the plugin's allow-list permits any `http` and `https` host; only Curie's own code can make these requests (lesson content cannot run code).
+- **The web build** uses the browser's fetch. Claude is called with the SDK's browser mode. Ollama in a browser additionally needs `OLLAMA_ORIGINS` to allow the site.
+- For network access to Ollama on another computer, Ollama must listen on the network (`OLLAMA_HOST=0.0.0.0`).
+
+### 9.7 Privacy and safety
+
+- **Keys:** API keys are entered by the student, stored separately from settings (`keys.json` natively, browser storage on the web), never exported, and sent only to their provider.
+- **What is sent:** the conversation, any attached note excerpts, and the results of tools the model calls (which may include note text, lesson text and the progress summary). Notes, lessons and progress are otherwise never uploaded. The Notes tab and Settings state this plainly.
+- **Untrusted content:** note text and lesson content reach the model inside labelled blocks or tool results and are treated as material, not instructions. Model output is rendered as Markdown and math only (no HTML or scripts), and generated lessons are validated data.
+- **Refusals:** a declined request shows a short notice. On Claude Opus and Sonnet, server-side fallbacks first retry declined requests on Anthropic's recommended fallback model, which reduces false positives on, for example, biology notes.
+
+### 9.8 Cost and performance
+
+Prompt caching (Claude) and a stable system prompt keep follow-up turns cheaper; the effort setting trades depth for cost; automatic excerpts are capped at four passages; Ollama's context window is configurable. Provider code, including the Anthropic SDK, loads only when the assistant is first used. Streaming text is applied once per animation frame.
+
+### 9.9 Errors
+
+Failures are explained in the chat with a next step: a rejected key or missing model (with a link to Settings), rate limits, an unreachable server (with its address), a model without tool support (suggesting a tool-capable model or turning tools off), refusals, and answers cut off at their length limit.
+
+---
+
+## 10. Progress and Assessment
+
+### 10.1 Data recorded
+
+| Data | When |
+|---|---|
+| Lesson opened, furthest reading position, completion | While reading (stored with the lesson's library entry) |
+| Quiz attempts per question: first-try result, solved, last wrong answer, question and correct answer | When an answer is checked |
+| Study days | When a lesson is opened or a quiz is answered |
+
+Progress is local only (`progress.json` natively, browser storage on the web). Retrying a solved quiz is practice and doesn't change its first-try result. Settings can clear notes, quiz history and the chat.
+
+### 10.2 Progress tab
+
+Lessons completed and in progress, first-try accuracy, study streak (counted back from today, or from yesterday when the student hasn't studied yet today), questions to review, a 15-week study heatmap, per-lesson reading and quiz scores, and the AI guidance actions.
+
+### 10.3 Guidance
+
+The assistant reads the progress report through `get_progress`, combines it with the student's notes, and replies with strengths, specific review items, an ordered plan for the next session, and an offer of a targeted practice quiz.
+
+### 10.4 Planned
+
+Spaced repetition for flashcards and missed questions, mastery per topic or note collection, goals and reminders, and exporting progress.
+
+---
+
+## 11. Architecture
+
+### 11.1 Modules
 
 ```text
-Curie Application
-├── App Shell
-│   ├── Navigation and lesson header
-│   ├── Import/export controls
-│   └── Theme control
-├── Lesson Viewer
-│   ├── Document renderer
-│   └── Block registry
-│       ├── Markdown renderer
-│       ├── Image and video renderers
-│       ├── Graph and Lottie renderers
-│       └── Interactive renderers
-├── Curie Package Layer
-│   ├── ZIP loading and writing
-│   ├── Manifest validation
-│   ├── Document/block validation
-│   ├── Asset resolution
-│   └── Package safety checks
-└── Shared Foundation
-    ├── Types and schemas
-    ├── Theme tokens
-    ├── Error handling
-    └── Tests and fixtures
+src/
+├── App.tsx, pages/            Shell, routes (library, lesson, editor, explore, study, settings)
+├── components/                Block renderer, Markdown, lesson variables
+├── editor/                    Block definitions, inspector, outline, asset panel, tree operations
+├── curie/                     Package format: schemas, ZIP load/export (Web Worker), expressions, logic, SVG sanitising
+├── lib/                       Library (storage backends), settings, progress, lesson sources, router, sound, app data files
+├── rag/                       Notes: extraction, chunking, BM25 index, notes store
+├── ai/                        Provider-neutral types, agent loop, tools, lesson tool, prompts, configuration, assistant state
+│   └── providers/             Claude (Anthropic SDK), OpenAI-compatible, Ollama
+├── study/                     Assistant, Notes and Progress tabs
+└── ui/                        Shared UI: toasts, menus, sheets, confirm dialog, logo, covers, AI settings
+src-tauri/                     Tauri 2 shell (fs, dialog, http plugins), icons, Android project
+tests/e2e/                     Playwright browser tests
 ```
 
-### 8.2 Package layer responsibilities
+### 11.2 Package layer
 
-The package module should:
-1. Read a ZIP-based `.curie` file.
-2. Enforce archive entry and size limits.
-3. Normalize supported common archive-root layouts.
-4. Reject unsafe paths, including traversal attempts.
-5. Locate and parse the manifest and document.
-6. Validate their schemas and versions.
-7. Verify local asset references.
-8. Return a validated lesson model and access to its assets.
-9. Export a valid package without losing existing assets.
+The package module reads and writes `.curie` ZIPs, enforces entry-count and size limits, normalises wrapper folders and `./` prefixes, rejects unsafe and duplicate paths, validates manifest and document, verifies local assets, and exports without losing assets. It runs in a Web Worker with progress reporting and is independent of React so it can be unit-tested.
 
-The package module should remain separate from React components so it can be unit-tested independently.
+### 11.3 Renderer
 
-### 8.3 Renderer responsibilities
+The renderer maps each validated block's `type` to its component, renders sections recursively, resolves assets through object URLs it revokes, evaluates expressions only through the sandboxed interpreter, isolates each block behind an error boundary, and never executes lesson-supplied code.
 
-The renderer should:
-- Map a validated block's `type` to its React component.
-- Pass only validated properties to that component.
-- Render nested sections recursively.
-- Resolve local asset paths through the package asset layer.
-- Provide component-level fallbacks for invalid or unavailable media.
-- Avoid dynamic code execution and arbitrary component lookup from lesson content.
+### 11.4 State
 
-### 8.4 State management
-
-The current prototype uses component-local UI state for simple interactions. Future shared state should be introduced only with an explicit state model and security boundaries. A future expression or binding engine must be declarative, limited, deterministic, and must not evaluate arbitrary JavaScript from lessons.
+- **Lesson variables:** per open lesson, in memory, recomputed from inputs and formulas.
+- **App state:** React context providers for settings, library, AI configuration, notes, progress and the assistant conversation.
+- **Persistence:** library backends (IndexedDB or native files), JSON app-data documents, and the notes store, as described in 5.8 and 8.3.
 
 ---
 
-## 9. Package Validation and Security
+## 12. Package Validation and Security
 
-Lesson packages are external input and must be treated as untrusted.
+Lesson packages, downloaded lessons, notes and AI output are all treated as untrusted.
 
-### 9.1 Current prototype protections
+### 12.1 Current protections
 
-The prototype includes basic checks such as:
-- Package size limit.
-- Maximum file-count limit.
-- Path traversal checks.
-- Manifest and document schema validation.
-- Local asset existence checks.
-- Extension-based MIME handling for asset blobs.
+- Package size (50 MB), extracted size (200 MB), entry-count (300) and per-asset (50 MB) limits, checked against declared and actual sizes.
+- Path traversal, absolute paths, backslashes and control characters rejected, including JSZip's silently resolved `..` entries.
+- Duplicate and case-conflicting paths rejected; macOS archive noise ignored.
+- Manifest, document, block and expression validation; unknown required features refused with a clear message.
+- Interactive SVGs sanitised (scripts, `foreignObject`, event handlers, animation elements and external references removed); bindings cannot set `href`, `src`, `style` or event attributes.
+- Expressions evaluated by Curie's own interpreter with no access to JavaScript globals or prototypes.
+- AI output rendered as Markdown only; generated lessons validated before saving.
 
-These protections are a starting point, not a complete security boundary.
+### 12.2 Remaining work
 
-### 9.2 Required hardening before production
-
-- Validate compressed and uncompressed sizes to reduce ZIP-bomb risk.
-- Limit individual file size, total extracted size, nesting depth, and parsing work.
-- Reject duplicate normalized paths and ambiguous archive entries.
-- Normalize paths consistently across platforms.
-- Ensure no asset can resolve outside the package.
-- Sanitize or safely render SVG and other potentially active content.
-- Keep raw HTML disabled in Markdown unless a vetted sanitizer is added.
-- Restrict or clearly warn about remote media and tracking-capable URLs.
-- Avoid unsafe URL schemes such as `javascript:`.
-- Apply timeouts and graceful failure to media loading.
-- Test malformed JSON, corrupt ZIPs, invalid encodings, duplicate files, and adversarial path names.
-- Avoid claiming that package validation makes all untrusted files safe until a security review has been completed.
+- Content Security Policy for the web build (the native apps already set one).
+- Signing and integrity checks for lessons downloaded from sources.
+- Keychain storage for API keys on desktop and Android.
+- A security review of the HTTP plugin allow-list once a curated list of AI endpoints is acceptable.
 
 ---
 
-## 10. Accessibility, Responsiveness, and Performance
+## 13. Accessibility, Responsiveness, and Performance
 
-### 10.1 Accessibility
+### 13.1 Accessibility
 
-- Use semantic HTML for headings, sections, buttons, forms, and media.
-- Provide meaningful alt text for informative images.
-- Ensure keyboard access for interactive components.
-- Use visible focus indicators.
-- Provide labels for slider and quiz controls.
-- Do not use color as the sole signal for correctness or warnings.
-- Respect reduced-motion preferences for animation when possible.
-- Ensure readable contrast in both themes.
+- Semantic HTML, labelled controls, keyboard access and visible focus everywhere, including the editor and the assistant.
+- Meaningful alt text for informative images; colour is never the only signal for correctness or warnings.
+- Reduced-motion and sound settings; readable contrast in both themes.
+- Streaming chat output is announced politely; tool activity is shown as text.
 
-### 10.2 Responsive behavior
+### 13.2 Responsive behaviour
 
-- The lesson should be readable on small mobile screens, tablets, and desktop displays.
-- Charts and media should scale within their container.
-- Code blocks and tables should remain usable on narrow screens.
-- Navigation may collapse on narrow viewports without changing lesson content or order.
+- Layouts adapt from 320 px phones to wide desktops (see 5.1 and 5.7).
+- Charts, media, code and tables scale or scroll within their containers.
+- Bottom sheets, action sheets and a thumb-reachable editor bar on phones; safe areas respected.
 
-### 10.3 Performance
+### 13.3 Performance
 
-- Avoid loading large assets before they are needed where practical.
-- Revoke generated object URLs when no longer required.
-- Avoid repeated parsing of the same package and animation data.
-- Keep block renderers focused and prevent unnecessary rerenders.
-- Handle large lessons and media files without freezing the interface.
-- Establish measurable performance targets once representative lesson sizes and target devices are agreed.
+- Package work in a Web Worker; chunked native file reads with progress.
+- Lazy-loaded pages and heavy features (editor, renderer, PDF reader, AI providers).
+- Memoised Markdown rendering; streamed AI text batched per frame.
+- Object URLs revoked; animation and package data parsed once.
 
 ---
 
-## 11. Functional Requirements
+## 14. Functional Requirements
 
-| ID | Requirement | Priority |
+| ID | Requirement | Status |
 |---|---|---|
-| FR-01 | Open and render a valid `.curie` lesson | Must |
-| FR-02 | Validate manifest and document structure | Must |
-| FR-03 | Render every component listed in Section 7 | Must for current prototype scope |
-| FR-04 | Resolve local image, video, and Lottie assets | Must |
-| FR-05 | Display a useful error for missing manifest/document/assets | Must |
-| FR-06 | Support light and dark app themes | Must |
-| FR-07 | Prevent lesson-level theme overrides | Must |
-| FR-08 | Export a lesson while preserving its assets | Must |
-| FR-09 | Support remote image/video sources where permitted | Should |
-| FR-10 | Support common ZIP wrappers and `./` prefixes safely | Should |
-| FR-11 | Provide authoring UI for adding/reordering/editing blocks | Future |
-| FR-12 | Persist learner progress and interaction results | Future |
-| FR-13 | Add declarative cross-component bindings | Future, requires separate design |
-| FR-14 | Package and distribute a Tauri desktop application | Planned |
-| FR-15 | Support mobile-specific packaging | Future evaluation |
+| FR-01 | Open, validate and render `.curie` lessons with local assets | Done |
+| FR-02 | Light and dark themes; no lesson-level theme overrides | Done |
+| FR-03 | Export lessons without losing assets | Done |
+| FR-04 | Block editor: add, reorder, nest, edit, preview, undo, autosave | Done |
+| FR-05 | Lesson variables, formulas, live values, plots, interactive SVG, conditional blocks | Done |
+| FR-06 | Persistent library with reading progress and completion | Done |
+| FR-07 | Explore lessons from GitHub sources, download and update | Done |
+| FR-08 | Lesson cover images | Done |
+| FR-09 | Desktop (Linux, Windows) and Android apps | Done |
+| FR-10 | Responsive Import with progress for large lessons | Done |
+| FR-11 | Notes: import PDF, text, Markdown, photos and pasted text; local search | Done |
+| FR-12 | AI assistant with Claude, OpenAI-compatible endpoints and Ollama (local or LAN) | Done |
+| FR-13 | Answers grounded in notes with citations | Done |
+| FR-14 | Generate validated lessons and practice quizzes | Done |
+| FR-15 | Track quiz attempts, accuracy, streak and questions to review | Done |
+| FR-16 | Personal study guidance from progress | Done |
+| FR-17 | Clear study data | Done |
+| FR-18 | Spaced repetition and mastery tracking | Planned |
+| FR-19 | Semantic (embedding) search and note collections | Planned |
+| FR-20 | OCR for scanned PDFs; Word and slide import | Planned |
+| FR-21 | AI-assisted editing inside the editor (rewrite, add quiz for this section) | Planned |
+| FR-22 | Opt-in sync and backup | Future decision |
+| FR-23 | macOS and iOS builds | Future decision |
 
 ---
 
-## 12. Non-Functional Requirements
+## 15. Non-Functional Requirements
 
-- **Maintainability:** use modular TypeScript modules, schemas, and focused components.
-- **Reliability:** invalid lesson data should not crash the application.
-- **Portability:** package assets should use relative paths and be self-contained where possible.
-- **Compatibility:** package and document versions must be explicit.
-- **Security:** treat all imported lessons as untrusted input.
-- **Accessibility:** target WCAG-aligned interaction and contrast practices.
-- **Performance:** keep common lesson interactions responsive on mid-range devices.
-- **Extensibility:** adding a block type should require a documented, repeatable workflow.
-- **Privacy:** avoid collecting learner data unless a feature explicitly requires it and its data handling is documented.
-
----
-
-## 13. Testing and Quality Assurance
-
-### 13.1 Unit tests
-
-Test:
-- Manifest and document schema validation.
-- Every block schema and required property.
-- Path normalization and traversal rejection.
-- Asset path resolution and missing-asset detection.
-- Package import/export round trips.
-- ZIP wrapper normalization.
-- Correct behavior for duplicate paths and malformed archives.
-
-### 13.2 Component tests
-
-Test:
-- Every block type renders valid data.
-- Missing and invalid media show a fallback.
-- Quiz feedback and correct-answer handling work.
-- Slider boundaries and step behavior are respected.
-- Reveals open and close.
-- Flashcards flip with keyboard and pointer input.
-- Theme changes do not alter lesson data.
-- Nested sections render their children in order.
-
-### 13.3 Integration tests
-
-Test end-to-end workflows:
-1. Import a valid lesson.
-2. Render text, equations, local image, local MP4, local Lottie JSON, graph, and interactive blocks.
-3. Change app theme.
-4. Export and re-import the lesson.
-5. Confirm assets and content are preserved.
-6. Import malformed packages and confirm useful errors appear.
-
-### 13.4 Example and regression fixtures
-
-Maintain fixture packages for:
-- Minimal valid lesson.
-- Full-feature lesson.
-- Lesson with local video.
-- Lesson with SVG and raster images.
-- Lesson with Lottie JSON.
-- Missing asset.
-- Missing manifest/document.
-- Extra enclosing directory.
-- `./`-prefixed paths.
-- Unsafe traversal paths.
-- Unsupported required feature.
-- Corrupt or oversized archive.
-
-### 13.5 Build verification
-
-Before a release, run and record the results of:
-- Dependency installation.
-- TypeScript checking.
-- Production web build.
-- Unit and integration tests.
-- Tauri build for each supported target.
-
-Do not label the project production-ready based only on static inspection or successful archive creation.
+- **Privacy:** local-first storage; AI requests only to the provider the student configures; clear statements of what is sent; no analytics or tracking.
+- **Security:** all external input untrusted (see 12); no execution of lesson or model-supplied code.
+- **Reliability:** invalid lessons, notes or model output never crash the app; every failure has a readable message.
+- **Offline:** lessons, notes, search and progress work offline; the assistant needs its provider (Ollama on the local network works without internet).
+- **Performance:** interactions stay responsive on mid-range phones; long tasks show progress.
+- **Accessibility:** WCAG-aligned semantics, focus, contrast and motion.
+- **Maintainability:** typed modules, schemas, provider adapters behind one interface, documented extension points.
+- **Portability:** `.curie` packages are self-contained and versioned.
 
 ---
 
-## 14. Roadmap
+## 16. Testing and Quality Assurance
 
-### Phase 1 — Reliable lesson format and renderer
+### 16.1 Unit tests (Vitest)
 
-- Stabilize manifest and document schemas.
-- Validate all current block types.
-- Fix and test local image/video/animation asset loading.
-- Improve package import errors and root-path normalization.
-- Add automated tests for package handling and rendering.
-- Maintain a full-feature example lesson.
+Package format (loading, normalisation, limits, unsafe paths, export round trips, covers), expressions and lesson logic, editor tree operations, lesson sources, chunking and BM25 search, progress records and summaries, the agent loop (tool validation, malformed-JSON retry, refused or truncated turns, dangling tool calls), lesson generation and validation, and every provider adapter: message mapping, stream accumulation, `<think>` splitting, Claude fallback handling, and the Claude adapter end to end through the Anthropic SDK against a stubbed stream (checking the request it sends and the reply it parses).
 
-**Exit criteria:** a valid `.curie` package with local assets imports and renders; export/re-import preserves content and assets; malformed packages produce actionable errors.
+### 16.2 Component tests (Testing Library, jsdom)
 
-### Phase 2 — Better learning interactions
+The block renderer with lesson variables (placeholders, conditional blocks, slider input) and quiz feedback.
 
-- Improve keyboard accessibility and feedback.
-- Add component-level error and loading states.
-- Add a lesson progress indicator if supported by the navigation model.
-- Decide how progress should be stored before implementing persistence.
-- Define reduced-motion behavior for Lottie animations.
+### 16.3 Browser tests (Playwright, desktop and phone viewports)
 
-**Exit criteria:** interactions behave consistently, have accessible controls, and do not imply persistence that is not implemented.
+Creating a lesson, the phone editor's tool bar and sheets, live variables in an imported lesson, quiz results on the Progress tab, adding and searching notes, an Ollama conversation that searches notes and creates a lesson that then opens, Claude streaming with its reasoning summary, the setup prompt when no model is configured, and loading Ollama models and testing the connection. AI providers are mocked at the network layer, so the tests need no keys or network and are deterministic.
 
-### Phase 3 — Lesson authoring
+### 16.4 Continuous integration
 
-- Design a block-based authoring interface.
-- Add, remove, reorder, and edit blocks.
-- Upload, replace, and remove assets.
-- Preview lessons using the production renderer.
-- Validate and export the lesson before sharing.
+Every push runs type checking, unit and component tests, the production build and the browser tests, and checks that the Tauri app compiles.
 
-**Exit criteria:** a user can create and export a lesson without manually editing JSON or ZIP archives.
+### 16.5 Release checklist
 
-### Phase 4 — Desktop packaging
-
-- Complete Tauri 2 configuration.
-- Test import/export through native file dialogs.
-- Verify file access, security boundaries, and packaging.
-- Produce installers for selected target operating systems.
-
-**Exit criteria:** reproducible builds and successful import/export on each declared supported platform.
-
-### Phase 5 — Progress and advanced learning features
-
-- Define learner progress and persistence.
-- Consider attempts, completion state, and bookmarks.
-- Evaluate a safe declarative binding model for interactions.
-- Add further components only when their schemas, accessibility, and tests are specified.
-
-**Exit criteria:** each feature has a written data model, migration strategy, security review, and automated coverage.
+Type check, all test suites, production build, Tauri builds for each target, signed Android APK verified with `apksigner`, a manual pass on a real phone (import, editor, assistant with a real provider), and updated changelog and privacy notes.
 
 ---
 
-## 15. Acceptance Criteria for the Current Prototype
+## 17. Roadmap
 
-The prototype is considered functionally ready for its next development stage when:
+### Done (0.1–0.3)
 
-- [ ] The web app starts using the documented development command.
-- [ ] TypeScript checking and the production build pass.
-- [ ] A valid `.curie` file imports and renders.
-- [ ] The manifest and document are validated before rendering.
-- [ ] Local image, MP4 video, and Lottie JSON assets render from the archive.
-- [ ] Graph, Markdown/math, quiz, slider, reveal, flashcard, callout, divider, and section blocks render.
-- [ ] The light/dark theme toggle changes app appearance without requiring lesson changes.
-- [ ] The importer handles a canonical ZIP and the explicitly supported wrapper layouts.
-- [ ] Missing or invalid package files produce clear errors.
-- [ ] Unsafe paths are rejected.
-- [ ] Export and re-import preserve all package assets.
-- [ ] Automated tests cover the package format and critical renderer paths.
-- [ ] Known limitations are documented accurately.
+Reliable package format and renderer; block editor; persistent library and progress; Tauri desktop and Android apps; lesson sources; cover images; variables and live logic; responsive import; new design system and logo; phone-first editor; notes with local search; the AI study assistant with three provider types; progress tracking and guidance; automated unit, component and browser tests.
 
----
+### Next (0.4): Learning loop
 
-## 16. Known Limitations and Open Decisions
+- Spaced repetition queue built from flashcards and missed questions, with a daily review.
+- Mastery per note collection and topic; guidance that uses it.
+- AI actions in the editor: draft a section, add quick checks for a section, rewrite for a reading level.
+- Show the cited passage when tapping a citation.
 
-The following are not considered complete unless separately implemented and verified:
+### Later
 
-- The current prototype does not yet provide a full lesson authoring studio.
-- Interactive state is currently local/in-memory; learner progress is not a persistent feature.
-- There is no general lesson-wide expression or binding engine.
-- Remote media requires a network connection and may be unavailable or blocked.
-- Lottie support is for JSON-format animation data, not automatically for `.lottie` binary files.
-- The package security model needs further hardening before treating arbitrary downloaded lessons as safe.
-- Tauri scaffolding/configuration must be validated with real platform builds.
-- Offline caching, mobile packaging, analytics, accounts, synchronization, and cloud lesson libraries require separate product decisions.
+- Embedding-based semantic search (local models where possible), OCR, Word and slide import.
+- Keychain storage for keys; signed lesson sources.
+- Opt-in sync and backup; classroom sharing of lesson sources.
+- macOS and iOS builds.
 
-Open decisions to document before implementing related features:
-1. Should lesson progress be local-only, exportable, or account-synchronized?
-2. Should authors be allowed to embed external URLs, and what warnings or restrictions should apply?
-3. What is the policy for unsupported required features and older client versions?
-4. What size limits should apply to a single asset and a complete lesson?
-5. Which operating systems and browser versions are official release targets?
-6. What authoring workflow is preferred: in-app block editor, Markdown/JSON source editing, or both?
+Each feature needs a written data model, privacy notes, migration plan and automated tests before release.
 
 ---
 
-## 17. Glossary
+## 18. Acceptance Criteria for Release 0.3
 
-- **Block:** A single typed unit of lesson content or interaction.
-- **Lesson document:** The ordered, nested collection of blocks in `document.json`.
-- **Manifest:** Package metadata and compatibility information in `manifest.json`.
-- **Asset:** A media file bundled with a lesson, usually inside `assets/`.
-- **Renderer:** The React component responsible for displaying a particular block type.
-- **Package format:** The structure and versioning rules used by `.curie` files.
-- **Required feature:** A component or capability a client must support to render a lesson correctly.
-- **Portable lesson:** A lesson whose structure and required local resources are packaged together without relying on machine-specific paths.
+- [x] Type check, unit, component and browser tests pass; production build succeeds.
+- [x] Lessons import, render, edit, export and re-import without losing assets.
+- [x] The phone editor works with the bottom tool bar and sheets.
+- [x] Notes can be added from PDF, text, Markdown, pasted text and (with AI) photos, and searched offline.
+- [x] The assistant works with Claude, an OpenAI-compatible endpoint and Ollama, answers from notes with citations, creates valid lessons and gives progress guidance.
+- [x] Quiz attempts and study days are recorded and shown on the Progress tab.
+- [x] Keys stay on the device and are never exported; the app explains what the assistant sends.
+- [ ] Verified on a real Android phone and a Windows PC with real providers (manual).
 
 ---
 
-## 18. Summary
+## 19. Known Limitations and Open Decisions
 
-Curie is a web-first, component-driven learning application built around a portable, versioned `.curie` package format. Its initial focus is a reliable lesson viewer with rich but bounded components, local media support, light/dark themes controlled by the app, and safe package import/export.
+- Notes search is keyword-based (BM25); synonyms and paraphrases may be missed until semantic search lands.
+- Scanned PDFs need page photos for AI transcription; Word documents aren't read.
+- Small local models may not support tool calling or may produce weaker lessons; tools can be turned off, with lesson drafts saved from the chat instead.
+- API keys are stored in the app's private data, not the OS keychain.
+- Progress and notes are per device; there is no sync.
+- Remote media and Explore need a network connection.
+- Lottie support is for JSON animation data, not `.lottie` files.
 
-The next priority is **correctness and testability**—especially asset loading, ZIP handling, schema validation, and import/export round trips—before expanding into a full authoring studio, persistent learner progress, or more advanced interactive systems.
+Open decisions:
+1. Should progress and notes be exportable, and in which format?
+2. Should Curie offer a curated list of AI endpoints in place of an open allow-list?
+3. Which spaced-repetition algorithm (SM-2, FSRS) and how should it interact with lesson quizzes?
+4. Should generated lessons record which notes they were built from?
+
+---
+
+## 20. Glossary
+
+- **Block:** a single typed unit of lesson content or interaction.
+- **Lesson document:** the ordered, nested blocks in `document.json`.
+- **Manifest:** package metadata and compatibility information in `manifest.json`.
+- **Asset:** a media file bundled with a lesson, inside `assets/`.
+- **Required feature:** a capability a client must support to render a lesson correctly.
+- **Lesson source:** a GitHub repository whose `.curie` files appear in Explore.
+- **Note:** a student's own study material, stored as text and passages.
+- **Passage:** a chunk of a note used for search and citation.
+- **BM25:** the keyword ranking function used for note search.
+- **Provider:** the AI service or local server the assistant uses (Claude, an OpenAI-compatible endpoint, or Ollama).
+- **Tool:** an action the assistant can take inside Curie, such as searching notes or creating a lesson.
+- **First-try accuracy:** the share of quiz questions answered correctly on the first attempt.
+
+---
+
+## 21. Summary
+
+Curie is a local-first learning app built around a portable, versioned `.curie` format: lessons with rich, safe interactivity, an editor that works on phones, and native apps for desktop and Android. Release 0.3 adds a study loop around the student's own material: notes searched on the device, an AI assistant that runs on the provider the student chooses (Claude, OpenAI-compatible services or a local Ollama), lessons and quizzes generated as validated content, and progress tracking that turns into specific guidance. The next priority is closing the learning loop with spaced repetition and mastery, while keeping every feature private by default and covered by automated tests.

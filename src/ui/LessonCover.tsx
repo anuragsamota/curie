@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-// A lesson's cover image when it has one; otherwise generated art: each lesson gets a stable hue and orbit arrangement derived from its id.
+// A lesson's cover image when it has one; otherwise quiet generated art: a muted gradient from a curated
+// palette with thin concentric orbits, all derived from the lesson's id so it never changes.
 
 function hash(text: string): number {
   let value = 2166136261;
@@ -8,26 +9,30 @@ function hash(text: string): number {
   return value >>> 0;
 }
 
+/** Hues that sit well next to the brand blue: blue, violet, teal, green, coral, amber, rose, sky. */
+const HUES = [266, 292, 196, 158, 32, 70, 352, 236];
+
 export function LessonCover({ seed, title, image, className = "" }: { seed: string; title: string; image?: string; className?: string }) {
   if (image) return <div aria-hidden="true" className={`relative overflow-hidden bg-base-300 ${className}`}><img src={image} alt="" className="absolute inset-0 size-full object-cover" draggable={false} /></div>;
   const h = hash(seed);
-  const hue = h % 360;
-  const tilt = (h >> 9) % 180;
-  const orbits = 2 + ((h >> 4) % 2);
+  const hue = HUES[h % HUES.length];
+  const cx = 130 + ((h >> 5) % 50);
+  const cy = 40 + ((h >> 11) % 50);
+  const electron = ((h >> 15) % 360) * (Math.PI / 180);
   const initial = title.trim().charAt(0).toUpperCase() || "C";
   return <div
     aria-hidden="true"
     className={`relative overflow-hidden ${className}`}
-    style={{ background: `radial-gradient(120% 90% at 85% 10%, oklch(78% 0.13 ${hue + 40}) 0%, transparent 55%), linear-gradient(135deg, oklch(55% 0.17 ${hue}), oklch(36% 0.14 ${hue + 30}))` }}
+    style={{ background: `linear-gradient(150deg, oklch(66% 0.11 ${hue}) 0%, oklch(52% 0.13 ${hue + 18}) 100%)` }}
   >
     <svg viewBox="0 0 200 120" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 size-full">
-      <g transform="translate(150 60)" fill="none" stroke="white" strokeOpacity="0.32" strokeWidth="1.4">
-        {Array.from({ length: orbits }, (_, i) => <ellipse key={i} rx="58" ry="20" transform={`rotate(${tilt + i * (180 / orbits)})`} />)}
-        <circle r="7" fill={`oklch(92% 0.18 ${(hue + 150) % 360})`} stroke="none" fillOpacity="0.9" />
-        <circle cx="58" r="3.4" fill="white" stroke="none" fillOpacity="0.85" transform={`rotate(${tilt})`} />
+      <g fill="none" stroke="white" strokeWidth="1">
+        {[22, 40, 58, 76].map((r, i) => <circle key={r} cx={cx} cy={cy} r={r} strokeOpacity={0.3 - i * 0.06} />)}
       </g>
+      <circle cx={cx + 40 * Math.cos(electron)} cy={cy + 40 * Math.sin(electron)} r="3" fill="white" fillOpacity="0.9" />
+      <circle cx={cx} cy={cy} r="5" fill="white" fillOpacity="0.85" />
     </svg>
-    <span className="font-display absolute bottom-2 left-4 text-6xl font-extrabold leading-none text-white/90 drop-shadow-sm">{initial}</span>
+    <span className="font-display absolute bottom-2.5 left-3.5 text-4xl font-semibold leading-none tracking-tight text-white/90">{initial}</span>
   </div>;
 }
 
@@ -47,5 +52,5 @@ export function useObjectUrl(blob?: Blob) {
 export function CoverBanner({ image, className = "" }: { image?: Blob; className?: string }) {
   const url = useObjectUrl(image);
   if (!url) return null;
-  return <img src={url} alt="" draggable={false} className={`aspect-[16/7] w-full rounded-3xl object-cover ${className}`} />;
+  return <img src={url} alt="" draggable={false} className={`aspect-[16/7] w-full rounded-2xl object-cover ${className}`} />;
 }

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Curie reads and writes .curie lesson files the user opens, and keeps its library and settings in the app data folder.",
+  "description": "Curie reads and writes .curie lesson files the user opens, keeps its library, notes and settings in the app data folder, and calls the AI provider the user configures (Claude, OpenAI-compatible endpoints, or Ollama, including on the local network).",
   "windows": [
     "main"
   ],
@@ -33,6 +33,18 @@
     "fs:allow-rename",
     "fs:allow-open",
     "fs:allow-read",
-    "fs:allow-fstat"
+    "fs:allow-fstat",
+    "fs:allow-read-dir",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*:*"
+        },
+        {
+          "url": "http://*:*"
+        }
+      ]
+    }
   ]
 }

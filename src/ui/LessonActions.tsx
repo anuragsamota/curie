@@ -1,5 +1,7 @@
 import { useCallback } from "react";
-import { BookOpen, Copy, Download, FileSearch, PenLine, Trash2 } from "lucide-react";
+import { BookOpen, Copy, Download, FileSearch, PenLine, Sparkles, Trash2 } from "lucide-react";
+import { useAssistant } from "../ai/assistant";
+import { useAiConfig } from "../ai/config";
 import { useLibrary } from "../lib/library";
 import { navigate, paths } from "../lib/router";
 import { useSettings } from "../lib/settings";
@@ -18,6 +20,8 @@ export function useLessonMenu() {
   const toast = useToast();
   const play = useSound();
   const { settings } = useSettings();
+  const { ask } = useAssistant();
+  const { provider } = useAiConfig();
 
   const remove = useCallback(async (record: LessonSummary, context: Context) => {
     const title = record.manifest.title;
@@ -49,9 +53,10 @@ export function useLessonMenu() {
   ] : [
     ...(context !== "lesson" ? [{ label: "Open lesson", icon: BookOpen, onSelect: () => navigate(paths.lesson(record.key)) }] : []),
     ...(context !== "editor" ? [{ label: "Edit", icon: PenLine, onSelect: () => navigate(paths.editor(record.key)) }] : []),
+    ...(provider ? [{ label: "Quiz me with AI", icon: Sparkles, onSelect: () => ask(`Make me a practice quiz on the lesson "${record.manifest.title}" (lesson key ${record.key}). Read it first, and focus on anything I got wrong in it.`) }] : []),
     { label: "Export .curie", icon: Download, onSelect: () => void library.exportLesson(record.key) },
     { label: "Duplicate", icon: Copy, onSelect: () => void library.duplicate(record.key) },
     "divider",
     { label: native && !record.managed ? "Remove from library" : "Delete", icon: Trash2, danger: true, onSelect: () => void remove(record, context) },
-  ], [library, locate, remove]);
+  ], [ask, library, locate, provider, remove]);
 }

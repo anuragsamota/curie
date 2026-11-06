@@ -1,42 +1,42 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/bricolage-grotesque";
-@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 @plugin "@tailwindcss/typography";
 @plugin "daisyui" {
   themes: false;
 }
 
 /* ── Curie themes ─────────────────────────────────────────────────────────────
-   "Lab paper" (light) and "Night lab" (dark): warm paper and deep ink, with an
-   atomic-indigo primary and a radium-green secondary used for highlights. */
+   Minimal and calm: cool neutral surfaces, one electric-indigo accent for
+   actions and focus, and a mint highlight used sparingly (the logo's electron,
+   streaks, celebrations). Corners are tight and elevation is barely there. */
 @plugin "daisyui/theme" {
   name: "curie-light";
   default: true;
   color-scheme: light;
-  --color-base-100: oklch(99.3% 0.003 95);
-  --color-base-200: oklch(96.8% 0.006 95);
-  --color-base-300: oklch(91.8% 0.01 95);
-  --color-base-content: oklch(24% 0.035 282);
-  --color-primary: oklch(50% 0.215 281);
-  --color-primary-content: oklch(98.5% 0.01 281);
-  --color-secondary: oklch(89% 0.19 128);
-  --color-secondary-content: oklch(30% 0.08 140);
-  --color-accent: oklch(79% 0.155 62);
-  --color-accent-content: oklch(28% 0.06 50);
-  --color-neutral: oklch(26% 0.035 282);
-  --color-neutral-content: oklch(97% 0.006 282);
-  --color-info: oklch(60% 0.14 240);
-  --color-info-content: oklch(98% 0.01 240);
-  --color-success: oklch(58% 0.15 155);
-  --color-success-content: oklch(98% 0.01 155);
-  --color-warning: oklch(77% 0.16 72);
-  --color-warning-content: oklch(28% 0.06 60);
-  --color-error: oklch(57% 0.21 25);
-  --color-error-content: oklch(98% 0.01 25);
-  --radius-selector: 0.75rem;
-  --radius-field: 0.75rem;
-  --radius-box: 1.25rem;
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(97.6% 0.0025 264);
+  --color-base-300: oklch(92.2% 0.005 264);
+  --color-base-content: oklch(21% 0.016 266);
+  --color-primary: oklch(54% 0.21 266);
+  --color-primary-content: oklch(99% 0.004 266);
+  --color-secondary: oklch(95.2% 0.026 266);
+  --color-secondary-content: oklch(42% 0.16 266);
+  --color-accent: oklch(78% 0.13 168);
+  --color-accent-content: oklch(26% 0.05 168);
+  --color-neutral: oklch(22% 0.016 266);
+  --color-neutral-content: oklch(97% 0.003 266);
+  --color-info: oklch(61% 0.15 236);
+  --color-info-content: oklch(98.5% 0.01 236);
+  --color-success: oklch(59% 0.15 156);
+  --color-success-content: oklch(98.5% 0.01 156);
+  --color-warning: oklch(76% 0.16 74);
+  --color-warning-content: oklch(27% 0.06 60);
+  --color-error: oklch(57% 0.22 25);
+  --color-error-content: oklch(98.5% 0.01 25);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -48,29 +48,29 @@
   name: "curie-dark";
   prefersdark: true;
   color-scheme: dark;
-  --color-base-100: oklch(19% 0.022 282);
-  --color-base-200: oklch(16% 0.02 282);
-  --color-base-300: oklch(27% 0.026 282);
-  --color-base-content: oklch(93% 0.012 282);
-  --color-primary: oklch(72% 0.155 283);
-  --color-primary-content: oklch(17% 0.045 283);
-  --color-secondary: oklch(89% 0.2 128);
-  --color-secondary-content: oklch(24% 0.07 140);
-  --color-accent: oklch(81% 0.145 66);
-  --color-accent-content: oklch(24% 0.05 50);
-  --color-neutral: oklch(31% 0.03 282);
-  --color-neutral-content: oklch(94% 0.01 282);
-  --color-info: oklch(74% 0.12 240);
-  --color-info-content: oklch(20% 0.04 240);
-  --color-success: oklch(76% 0.15 155);
-  --color-success-content: oklch(20% 0.05 155);
-  --color-warning: oklch(82% 0.15 75);
+  --color-base-100: oklch(18.6% 0.008 268);
+  --color-base-200: oklch(15% 0.007 268);
+  --color-base-300: oklch(27.5% 0.011 268);
+  --color-base-content: oklch(94.5% 0.004 268);
+  --color-primary: oklch(71% 0.155 268);
+  --color-primary-content: oklch(16% 0.04 268);
+  --color-secondary: oklch(27.5% 0.05 268);
+  --color-secondary-content: oklch(87% 0.07 268);
+  --color-accent: oklch(82% 0.12 168);
+  --color-accent-content: oklch(22% 0.05 168);
+  --color-neutral: oklch(27% 0.012 268);
+  --color-neutral-content: oklch(95% 0.004 268);
+  --color-info: oklch(75% 0.12 236);
+  --color-info-content: oklch(19% 0.04 236);
+  --color-success: oklch(77% 0.14 156);
+  --color-success-content: oklch(19% 0.05 156);
+  --color-warning: oklch(83% 0.14 80);
   --color-warning-content: oklch(24% 0.05 60);
-  --color-error: oklch(70% 0.18 22);
-  --color-error-content: oklch(18% 0.04 22);
-  --radius-selector: 0.75rem;
-  --radius-field: 0.75rem;
-  --radius-box: 1.25rem;
+  --color-error: oklch(71% 0.18 24);
+  --color-error-content: oklch(18% 0.04 24);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.625rem;
+  --radius-box: 0.875rem;
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
   --border: 1px;
@@ -82,9 +82,9 @@
 @custom-variant dark (&:where([data-mode=dark], [data-mode=dark] *));
 
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Bricolage Grotesque Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -104,10 +104,14 @@ html { scroll-behavior: smooth; }
 html, body { overflow-x: clip; }
 body { margin: 0; min-width: 320px; background: var(--color-base-100); }
 button { cursor: pointer; }
-::selection { background: color-mix(in oklab, var(--color-secondary) 55%, transparent); }
+::selection { background: color-mix(in oklab, var(--color-primary) 22%, transparent); }
 :focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
-.font-display { font-family: var(--font-display); font-optical-sizing: auto; }
+.font-display { font-family: var(--font-display); letter-spacing: -0.022em; }
+h1.font-display, h2.font-display { letter-spacing: -0.032em; }
+
+/* A quiet surface: hairline border plus the faintest lift, used for cards and panels. */
+.surface { background: var(--color-base-100); border: 1px solid var(--color-base-300); box-shadow: 0 1px 2px 0 color-mix(in oklab, var(--color-base-content) 5%, transparent); }
 
 /* Thin, theme-aware scrollbars for panels. */
 .scroll-thin { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--color-base-content) 18%, transparent) transparent; }
@@ -132,8 +136,8 @@ button { cursor: pointer; }
 }
 .curie-prose h1, .curie-prose h2, .curie-prose h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.025em;
-  font-weight: 750;
+  letter-spacing: -0.03em;
+  font-weight: 650;
 }
 .curie-prose h1 { font-size: 2.1em; margin-bottom: 0.6em; }
 .curie-prose h2 { margin-top: 2.1rem; margin-bottom: 0.9rem; }
@@ -142,7 +146,7 @@ button { cursor: pointer; }
   border-left: 3px solid var(--color-primary);
   background: color-mix(in oklab, var(--color-primary) 6%, var(--color-base-100));
   padding: 0.6rem 1.1rem;
-  border-radius: 0 0.9rem 0.9rem 0;
+  border-radius: 0 0.6rem 0.6rem 0;
   font-style: normal;
 }
 .curie-prose blockquote p::before, .curie-prose blockquote p::after { content: none; }
@@ -154,7 +158,7 @@ button { cursor: pointer; }
   font-weight: 500;
 }
 .curie-prose :not(pre) > code::before, .curie-prose :not(pre) > code::after { content: none; }
-.curie-prose pre { border-radius: 1rem; }
+.curie-prose pre { border-radius: 0.75rem; }
 .curie-prose table { display: block; overflow-x: auto; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.6rem 0; }
 
@@ -176,6 +180,8 @@ button { cursor: pointer; }
   100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); }
 }
 @keyframes glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes electron { to { transform: rotate(-360deg); } }
 
 .animate-page { animation: page-in 0.45s var(--ease-out-expo) both; }
 .animate-rise { animation: rise-in 0.5s var(--ease-out-expo) both; }
@@ -186,13 +192,32 @@ button { cursor: pointer; }
 .animate-orbit { animation: orbit 14s linear infinite; }
 .animate-float { animation: float 5s ease-in-out infinite; }
 .animate-glow { animation: glow 2.4s ease-in-out infinite; }
+.animate-sheet { animation: sheet-up 0.32s var(--ease-out-expo) both; }
+.animate-electron { animation: electron 1.5s cubic-bezier(0.55, 0.12, 0.45, 0.88) infinite; }
 .toast-enter { animation: toast-in 0.45s var(--ease-spring) both; }
 .toast-leave { animation: toast-out 0.25s ease-in both; }
 .toast-timer { animation: toast-timer linear forwards; transform-origin: left; }
 .toast-paused .toast-timer { animation-play-state: paused; }
 
 .lift { transition: transform 0.25s var(--ease-out-expo), box-shadow 0.25s var(--ease-out-expo), border-color 0.2s; }
-.lift:hover { transform: translateY(-3px); box-shadow: 0 14px 32px -18px color-mix(in oklab, var(--color-base-content) 45%, transparent); }
+.lift:hover { transform: translateY(-2px); border-color: color-mix(in oklab, var(--color-base-content) 16%, transparent); box-shadow: 0 10px 28px -16px color-mix(in oklab, var(--color-base-content) 35%, transparent); }
+
+/* ── Touch sizing ───────────────────────────────────────────────────────── */
+/* On touch screens, compact controls grow to comfortable targets (36–44px) and fields use 16px text,
+   which also stops mobile browsers from zooming into focused inputs. */
+@media (pointer: coarse) {
+  .btn-xs { --size: 2.25rem; --fontsize: 0.8125rem; --btn-p: 0.75rem; }
+  .btn-sm { --size: 2.5rem; --fontsize: 0.875rem; --btn-p: 0.875rem; }
+  .btn { --size: 2.875rem; }
+  .btn-lg { --size: 3.25rem; }
+  .input, .select { --font-size-min: 1rem; }
+  .input-xs, .input-sm { --in-size-mul: 10.5; }
+  .select-sm { --sl-size-mul: 10.5; }
+  .textarea, .textarea-sm, .textarea-xs { --font-size-min: 1rem; }
+  .toggle-sm[type="checkbox"], .toggle-sm:has([type="checkbox"]) { --size: calc(var(--size-selector, 0.25rem) * 6); }
+  .radio-sm[type="radio"], .checkbox-sm { --size: calc(var(--size-selector, 0.25rem) * 6); }
+  .range-xs { --range-thumb-size: calc(var(--size-selector, 0.25rem) * 5); }
+}
 
 .press { transition: transform 0.12s ease; }
 .press:active { transform: scale(0.97); }

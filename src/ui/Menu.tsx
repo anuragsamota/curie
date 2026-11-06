@@ -2,7 +2,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { MoreHorizontal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useIsPhone } from "../lib/media";
 import { useSound } from "../lib/sound";
+import { Sheet } from "./Sheet";
 
 export type MenuItem =
   | { label: string; icon?: LucideIcon; onSelect: () => void; danger?: boolean; disabled?: boolean; hint?: string }
@@ -17,16 +19,19 @@ export function Menu({ items, label = "More actions", trigger, align = "end", cl
   const list = useRef<HTMLDivElement>(null);
   const id = useId();
   const play = useSound();
+  const phone = useIsPhone();
 
   useEffect(() => {
     if (!open) return;
     list.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus({ preventScroll: true });
+    // The phone sheet lives in a portal and closes itself from its backdrop.
+    if (phone) return;
     const onPointer = (event: PointerEvent) => {
       if (!root.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointer);
     return () => document.removeEventListener("pointerdown", onPointer);
-  }, [open]);
+  }, [open, phone]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Escape") {
@@ -41,6 +46,18 @@ export function Menu({ items, label = "More actions", trigger, align = "end", cl
     buttons[(index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus({ preventScroll: true });
   };
 
+  const renderItems = (large: boolean) => items.map((item, index) => item === "divider"
+    ? <div key={index} className="my-1 h-px bg-base-300" role="separator" />
+    : <button
+      key={item.label} type="button" role="menuitem" disabled={item.disabled}
+      className={`flex w-full items-center gap-3 rounded-lg text-left outline-none transition-colors disabled:opacity-40 ${large ? "px-3 py-3 text-base" : "px-3 py-2 text-sm"} ${item.danger ? "text-error hover:bg-error/10 focus:bg-error/10" : "hover:bg-base-200 focus:bg-base-200"}`}
+      onClick={() => { setOpen(false); item.onSelect(); }}
+    >
+      {item.icon && <item.icon size={large ? 19 : 16} className={item.danger ? "" : "text-base-content/60"} />}
+      <span className="flex-1">{item.label}</span>
+      {item.hint && !large && <kbd className="text-xs text-base-content/40">{item.hint}</kbd>}
+    </button>);
+
   return <div ref={root} className={`relative ${className}`} onKeyDown={onKeyDown} onClick={(event) => event.stopPropagation()}>
     <button
       type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open} aria-controls={id}
@@ -49,18 +66,11 @@ export function Menu({ items, label = "More actions", trigger, align = "end", cl
     >
       {trigger ?? <MoreHorizontal size={18} />}
     </button>
-    {open && <div ref={list} id={id} role="menu" className={`animate-menu absolute z-50 mt-1.5 min-w-52 rounded-2xl border border-base-300 bg-base-100 p-1.5 text-base-content shadow-[0_20px_50px_-20px_rgb(0_0_0/0.4)] ${align === "end" ? "right-0" : "left-0 origin-top-left"}`}>
-      {items.map((item, index) => item === "divider"
-        ? <div key={index} className="my-1 h-px bg-base-300" role="separator" />
-        : <button
-          key={item.label} type="button" role="menuitem" disabled={item.disabled}
-          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm outline-none transition-colors disabled:opacity-40 ${item.danger ? "text-error hover:bg-error/10 focus:bg-error/10" : "hover:bg-base-200 focus:bg-base-200"}`}
-          onClick={() => { setOpen(false); item.onSelect(); }}
-        >
-          {item.icon && <item.icon size={16} className={item.danger ? "" : "text-base-content/60"} />}
-          <span className="flex-1">{item.label}</span>
-          {item.hint && <kbd className="text-xs text-base-content/40">{item.hint}</kbd>}
-        </button>)}
-    </div>}
+    {open && (phone
+      // Phones get a thumb-friendly action sheet instead of a dropdown.
+      ? <Sheet title={label} onClose={() => setOpen(false)}><div ref={list} id={id} role="menu" className="-mx-1 flex flex-col pb-1">{renderItems(true)}</div></Sheet>
+      : <div ref={list} id={id} role="menu" className={`animate-menu absolute z-50 mt-1.5 min-w-52 rounded-xl border border-base-300 bg-base-100 p-1.5 text-base-content shadow-[0_20px_50px_-20px_rgb(0_0_0/0.4)] ${align === "end" ? "right-0" : "left-0 origin-top-left"}`}>
+        {renderItems(false)}
+      </div>)}
   </div>;
 }

@@ -1,6 +1,6 @@
 [package]
 name = "curie"
-version = "0.2.0"
+version = "0.3.0"
 description = "Curie portable learning app"
 authors = ["Curie contributors"]
 edition = "2021"
@@ -19,6 +19,8 @@ serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+# unsafe-headers lets requests drop the Origin header; Ollama rejects unknown origins with 403.
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, CloudOff, Copy, Eye, FolderOpen, ListTree, LoaderCircle,
-  PanelLeft, PanelRight, PenLine, Plus, Redo2, SlidersHorizontal, Trash2, Undo2, X,
+  PanelLeft, PanelRight, PenLine, Plus, Redo2, SlidersHorizontal, Trash2, Undo2,
 } from "lucide-react";
 import BlockRenderer from "../components/BlockRenderer";
 import { LessonVariables } from "../components/variables";
@@ -20,6 +19,7 @@ import { droppedFiles, useFileDrop } from "../lib/drop";
 import { useLessonContent, useLibrary } from "../lib/library";
 import { formatBytes } from "../lib/lesson";
 import { navigate, paths } from "../lib/router";
+import { useIsDesktop } from "../lib/media";
 import { useSettings } from "../lib/settings";
 import { useSound } from "../lib/sound";
 import { native, type LessonContent, type LessonSummary } from "../lib/storage";
@@ -29,6 +29,7 @@ import { useLessonMenu } from "../ui/LessonActions";
 import { CoverBanner } from "../ui/LessonCover";
 import { LogoMark } from "../ui/Logo";
 import { Menu } from "../ui/Menu";
+import { Sheet } from "../ui/Sheet";
 import { useToast } from "../ui/Toasts";
 import NotFoundPage from "./NotFoundPage";
 
@@ -62,18 +63,6 @@ function useHistory(initial: Draft) {
   return { draft: history.present, set, undo, redo, canUndo: history.past.length > 0, canRedo: history.future.length > 0 };
 }
 
-function useIsDesktop() {
-  const query = "(min-width: 1024px)";
-  const [desktop, setDesktop] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const list = window.matchMedia(query);
-    const update = () => setDesktop(list.matches);
-    list.addEventListener("change", update);
-    return () => list.removeEventListener("change", update);
-  }, []);
-  return desktop;
-}
-
 function uniqueAssetPath(name: string, existing: AssetMap): string {
   const clean = name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[-.]+|-+$/g, "") || "file";
   const dot = clean.lastIndexOf(".");
@@ -83,19 +72,13 @@ function uniqueAssetPath(name: string, existing: AssetMap): string {
   return path;
 }
 
-function Drawer({ side, title, onClose, children }: { side: "left" | "right"; title: string; onClose: () => void; children: ReactNode }) {
-  return createPortal(<div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={title}>
-    <div className="animate-fade absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-    <div className={`absolute inset-y-0 flex w-[22rem] max-w-[88vw] flex-col bg-base-100 shadow-2xl ${side === "left" ? "left-0" : "right-0"}`}
-      style={{ animation: `${side === "left" ? "drawer-left" : "toast-in"} 0.35s var(--ease-out-expo) both` }}>
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-base-300 px-4">
-        <p className="font-display font-semibold">{title}</p>
-        <button className="btn btn-ghost btn-sm btn-square" aria-label={`Close ${title}`} onClick={onClose}><X size={18} /></button>
-      </div>
-      <div className="flex-1 overflow-y-auto scroll-thin p-4">{children}</div>
-    </div>
-  </div>, document.body);
+function ToolButton({ icon: Icon, label, onClick, disabled, active }: { icon: typeof Plus; label: string; onClick: () => void; disabled?: boolean; active?: boolean }) {
+  return <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active}
+    className={`press flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[0.68rem] font-medium transition-colors disabled:opacity-35 ${active ? "text-primary" : "text-base-content/65"}`}>
+    <Icon size={20} />{label}
+  </button>;
 }
+
 
 function SaveStatus({ state }: { state: "saved" | "saving" | "dirty" | "error" }) {
   const content = {
@@ -290,15 +273,25 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
     const def = BLOCKS[node.type];
     return <div id={`frame-${node.id}`} key={node.id}
       onClick={(event) => { event.stopPropagation(); if (!isSelected) { setSelected(node.id); play("tap"); } }}
-      className={`group/frame relative -mx-3 scroll-my-24 rounded-2xl px-3 py-2 transition-shadow ${isSelected ? "ring-2 ring-primary" : hasIssue ? "ring-1 ring-warning/60" : "hover:ring-1 hover:ring-base-content/15"}`}>
-      <span className={`absolute -top-3 left-3 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider transition-opacity ${isSelected ? "bg-primary text-primary-content opacity-100" : "bg-base-300 text-base-content/70 opacity-0 group-hover/frame:opacity-100"}`}>
+      className={`group/frame relative -mx-3 scroll-my-24 rounded-xl px-3 py-2 transition-shadow ${isSelected ? "ring-2 ring-primary" : hasIssue ? "ring-1 ring-warning/60" : "hover:ring-1 hover:ring-base-content/15"}`}>
+      <span className={`absolute -top-3 left-3 z-10 hidden items-center gap-1 rounded-full lg:flex px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider transition-opacity ${isSelected ? "bg-primary text-primary-content opacity-100" : "bg-base-300 text-base-content/70 opacity-0 group-hover/frame:opacity-100"}`}>
         <def.icon size={11} /> {def.label}{hasIssue && <AlertTriangle size={11} className={isSelected ? "" : "text-warning"} />}
       </span>
-      {isSelected && <div className="animate-menu absolute -top-4 right-3 z-20 flex items-center gap-0.5 rounded-xl border border-base-300 bg-base-100 p-0.5 shadow-md" onClick={(event) => event.stopPropagation()}>
+      {/* Phones: the selected block's actions sit in a row inside it, never over the content. */}
+      {isSelected && <div className="animate-fade mb-3 flex items-center justify-between gap-2 lg:hidden" onClick={(event) => event.stopPropagation()}>
+        <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-primary"><def.icon size={14} /> <span className="truncate">{def.label}</span>{hasIssue && <AlertTriangle size={13} className="text-warning" />}</span>
+        <div className="flex items-center">
+          <button className="btn btn-ghost btn-sm btn-square" aria-label="Move up" onClick={() => nudge(node.id, -1)}><ArrowUp size={17} /></button>
+          <button className="btn btn-ghost btn-sm btn-square" aria-label="Move down" onClick={() => nudge(node.id, 1)}><ArrowDown size={17} /></button>
+          <button className="btn btn-ghost btn-sm btn-square" aria-label="Duplicate" onClick={() => duplicate(node.id)}><Copy size={16} /></button>
+          <button className="btn btn-ghost btn-sm btn-square" aria-label="Edit block" onClick={() => setDrawer("right")}><SlidersHorizontal size={16} /></button>
+          <button className="btn btn-ghost btn-sm btn-square text-error" aria-label="Delete" onClick={() => deleteBlock(node.id)}><Trash2 size={16} /></button>
+        </div>
+      </div>}
+      {isSelected && <div className="animate-menu absolute -top-4 right-3 z-20 hidden items-center gap-0.5 rounded-lg border border-base-300 bg-base-100 p-0.5 shadow-md lg:flex" onClick={(event) => event.stopPropagation()}>
         <button className="btn btn-ghost btn-xs btn-square" aria-label="Move up" title="Move up (Alt+↑)" onClick={() => nudge(node.id, -1)}><ArrowUp size={14} /></button>
         <button className="btn btn-ghost btn-xs btn-square" aria-label="Move down" title="Move down (Alt+↓)" onClick={() => nudge(node.id, 1)}><ArrowDown size={14} /></button>
         <button className="btn btn-ghost btn-xs btn-square" aria-label="Duplicate" title="Duplicate" onClick={() => duplicate(node.id)}><Copy size={13} /></button>
-        <button className="btn btn-ghost btn-xs btn-square lg:hidden" aria-label="Edit block" onClick={() => setDrawer("right")}><SlidersHorizontal size={13} /></button>
         <button className="btn btn-ghost btn-xs btn-square text-error" aria-label="Delete" title="Delete (Del)" onClick={() => deleteBlock(node.id)}><Trash2 size={13} /></button>
       </div>}
       {content}
@@ -313,14 +306,14 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
     </div>} />;
 
   const outlinePanel = <div className="flex flex-col gap-3">
-    <div role="tablist" className="grid grid-cols-2 rounded-xl bg-base-200 p-1">
+    <div role="tablist" className="grid grid-cols-2 rounded-lg bg-base-200 p-1">
       {([["outline", "Outline", ListTree], ["assets", `Files (${Object.keys(draft.assets).length})`, FolderOpen]] as const).map(([tab, label, Icon]) =>
         <button key={tab} role="tab" aria-selected={leftTab === tab} onClick={() => setLeftTab(tab)}
           className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${leftTab === tab ? "bg-base-100 shadow-sm" : "text-base-content/60"}`}><Icon size={14} /> {label}</button>)}
     </div>
     {leftTab === "outline" ? <>
       <button type="button" onClick={() => { setSelected(undefined); if (!desktop) setDrawer("right"); }}
-        className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-left text-sm font-semibold ${!selected ? "bg-primary/12 text-primary" : "hover:bg-base-200"}`}>
+        className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm font-semibold ${!selected ? "bg-primary/12 text-primary" : "hover:bg-base-200"}`}>
         <PenLine size={15} /> <span className="truncate">{draft.manifest.title || "Untitled lesson"}</span>
       </button>
       <Outline nodes={blocks} selected={selected} issueIds={issueIds} onSelect={(id) => { select(id); if (!desktop) setDrawer(undefined); }} onMove={move} onAdd={addBlock} />
@@ -344,13 +337,13 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
   return <div className="flex h-dvh flex-col bg-base-100 text-base-content">
     <header className="flex h-14 shrink-0 items-center gap-1.5 border-b border-base-300 px-2 sm:gap-2 sm:px-3">
       <button className="btn btn-ghost btn-sm btn-square" aria-label="Back to library" title="Back to library" onClick={() => { void save(); navigate(paths.library); }}><ArrowLeft size={18} /></button>
-      {!preview && <button className={`btn btn-sm btn-square ${(desktop ? settings.editorOutlineOpen : drawer === "left") ? "btn-active" : "btn-ghost"}`} aria-label="Toggle outline panel" title="Outline and files" onClick={() => togglePanel("left")}><PanelLeft size={17} /></button>}
+      {!preview && desktop && <button className={`btn btn-sm btn-square ${settings.editorOutlineOpen ? "btn-active" : "btn-ghost"}`} aria-label="Toggle outline panel" title="Outline and files" onClick={() => togglePanel("left")}><PanelLeft size={17} /></button>}
       <div className="min-w-0 flex-1 px-1">
         <p className="font-display truncate text-sm font-bold sm:text-base">{draft.manifest.title || "Untitled lesson"}</p>
         <SaveStatus state={saveState} />
       </div>
 
-      <div role="radiogroup" aria-label="Mode" className="hidden rounded-xl bg-base-200 p-0.5 sm:flex">
+      <div role="radiogroup" aria-label="Mode" className="hidden rounded-lg bg-base-200 p-0.5 sm:flex">
         {([[false, "Edit", PenLine], [true, "Preview", Eye]] as const).map(([value, label, Icon]) =>
           <button key={label} role="radio" aria-checked={preview === value} title={`${label} (Ctrl+P)`} onClick={() => { setPreview(value); play("toggle"); }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-sm font-medium transition-all ${preview === value ? "bg-base-100 shadow-sm" : "text-base-content/60 hover:text-base-content"}`}><Icon size={14} /> {label}</button>)}
@@ -363,7 +356,7 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
       </div>
       {issues.length > 0 && <Menu label={`${issues.length} problems`} trigger={<span className="btn btn-sm btn-ghost gap-1 text-warning"><AlertTriangle size={16} /><span className="tabular-nums">{issues.length}</span></span>}
         items={issues.slice(0, 12).map((issue, index) => ({ label: issue.message, icon: AlertTriangle, onSelect: () => { setPreview(false); if (issue.blockId) select(issue.blockId); else setSelected(undefined); }, hint: String(index + 1) }))} className="[&_[role=menu]]:w-80" />}
-      {!preview && <button className={`btn btn-sm btn-square ${(desktop ? settings.editorInspectorOpen : drawer === "right") ? "btn-active" : "btn-ghost"}`} aria-label="Toggle inspector panel" title="Inspector" onClick={() => togglePanel("right")}><PanelRight size={17} /></button>}
+      {!preview && desktop && <button className={`btn btn-sm btn-square ${settings.editorInspectorOpen ? "btn-active" : "btn-ghost"}`} aria-label="Toggle inspector panel" title="Inspector" onClick={() => togglePanel("right")}><PanelRight size={17} /></button>}
       <Menu items={[
         { label: "Undo", icon: Undo2, onSelect: undo, disabled: !canUndo, hint: "Ctrl Z" },
         { label: "Redo", icon: Redo2, onSelect: redo, disabled: !canRedo, hint: "Ctrl ⇧ Z" },
@@ -374,20 +367,21 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
     <div className="flex min-h-0 flex-1">
       {showLeft && <aside className="animate-fade w-72 shrink-0 overflow-y-auto scroll-thin border-r border-base-300 p-3" aria-label="Outline and files">{outlinePanel}</aside>}
 
-      <main className="min-w-0 flex-1 overflow-y-auto scroll-thin bg-base-200/60" onClick={() => !preview && setSelected(undefined)}>
-        <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${preview ? "py-8 sm:py-12" : "py-6 sm:py-10"}`}>
+      <main className="min-w-0 flex-1 overflow-y-auto scroll-thin bg-base-100 lg:bg-base-200/60" onClick={() => !preview && setSelected(undefined)}>
+        <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${preview ? "py-6 lg:py-12" : "pb-28 pt-5 lg:py-10"}`}>
           <LessonVariables document={draft.document}>
-          <div className={`rounded-[2rem] border border-base-300 bg-base-100 px-5 py-8 shadow-sm transition-all sm:px-10 sm:py-12 ${preview ? "" : "pb-10"}`}>
-            <header className={`mb-10 rounded-2xl ${preview ? "" : `-m-3 cursor-pointer p-3 transition-shadow ${!selected ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-base-content/15"}`}`}
+          {/* A paper card on wide screens; on phones the page itself is the canvas. */}
+          <div className={`transition-all lg:rounded-2xl lg:border lg:border-base-300 lg:bg-base-100 lg:px-10 lg:py-12 lg:shadow-sm ${preview ? "" : "lg:pb-10"}`}>
+            <header className={`mb-10 rounded-xl ${preview ? "" : `-m-3 cursor-pointer p-3 transition-shadow ${!selected ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-base-content/15"}`}`}
               onClick={(event) => { if (preview) return; event.stopPropagation(); setSelected(undefined); if (!desktop) setDrawer("right"); }}>
               <CoverBanner image={draft.manifest.cover ? draft.assets[draft.manifest.cover] : undefined} className="mb-8" />
-              <h1 className="font-display text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">{draft.manifest.title || <span className="text-base-content/30">Untitled lesson</span>}</h1>
+              <h1 className="font-display text-3xl font-bold leading-[1.1] sm:text-5xl">{draft.manifest.title || <span className="text-base-content/30">Untitled lesson</span>}</h1>
               {draft.manifest.description && <p className="mt-4 text-lg leading-8 text-base-content/65">{draft.manifest.description}</p>}
               {draft.manifest.author && <p className="mt-4 text-sm font-medium text-base-content/60">By {draft.manifest.author}</p>}
             </header>
 
             {blocks.length === 0 && !preview
-              ? <div className="flex flex-col items-center rounded-3xl border-2 border-dashed border-base-300 px-6 py-14 text-center">
+              ? <div className="flex flex-col items-center rounded-2xl border-2 border-dashed border-base-300 px-6 py-14 text-center">
                 <p className="font-display text-lg font-bold">Start building your lesson</p>
                 <p className="mt-1 text-sm text-base-content/60">Add text, media, and interactive blocks.</p>
                 <AddBlockMenu align="center" onAdd={(type) => addBlock(type)} trigger={(toggle) => <button className="btn btn-primary mt-5 press" onClick={toggle}><Plus size={18} /> Add your first block</button>} />
@@ -411,15 +405,24 @@ function Editor({ record, initial }: { record: LessonSummary; initial: LessonCon
       {showRight && <aside className="animate-fade w-80 shrink-0 overflow-y-auto scroll-thin border-l border-base-300 p-4" aria-label="Inspector">{inspectorPanel}</aside>}
     </div>
 
-    {!desktop && !preview && drawer === "left" && <Drawer side="left" title="Outline" onClose={() => setDrawer(undefined)}>{outlinePanel}</Drawer>}
-    {!desktop && !preview && drawer === "right" && <Drawer side="right" title={selectedNode ? BLOCKS[selectedNode.type].label : "Lesson details"} onClose={() => setDrawer(undefined)}>{inspectorPanel}</Drawer>}
-    {!desktop && !preview && <div className="fixed bottom-5 right-5 z-30">
-      <AddBlockMenu align="end" up onAdd={(type) => addBlock(type)} trigger={(toggle) =>
-        <button className="btn btn-primary btn-circle btn-lg shadow-xl shadow-primary/30 press" aria-label="Add block" onClick={toggle}><Plus size={24} /></button>} />
-    </div>}
+    {!desktop && !preview && drawer === "left" && <Sheet title="Outline and files" onClose={() => setDrawer(undefined)}>{outlinePanel}</Sheet>}
+    {!desktop && !preview && drawer === "right" && <Sheet title={selectedNode ? BLOCKS[selectedNode.type].label : "Lesson details"} onClose={() => setDrawer(undefined)}>{inspectorPanel}</Sheet>}
+    {/* Phones: the editor's tools live in a bar under the thumb. */}
+    {!desktop && !preview && <nav aria-label="Editor tools" className="fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <div className="mx-auto grid max-w-md grid-cols-5 items-center px-2 py-1">
+        <ToolButton icon={ListTree} label="Outline" active={drawer === "left"} onClick={() => togglePanel("left")} />
+        <ToolButton icon={Undo2} label="Undo" disabled={!canUndo} onClick={undo} />
+        <div className="flex justify-center">
+          <AddBlockMenu align="center" up onAdd={(type) => addBlock(type)} trigger={(toggle) =>
+            <button className="press grid size-12 place-items-center rounded-full bg-primary text-primary-content shadow-lg shadow-primary/25" aria-label="Add block" onClick={toggle}><Plus size={22} /></button>} />
+        </div>
+        <ToolButton icon={Redo2} label="Redo" disabled={!canRedo} onClick={redo} />
+        <ToolButton icon={SlidersHorizontal} label={selectedNode ? "Block" : "Lesson"} active={drawer === "right"} onClick={() => togglePanel("right")} />
+      </div>
+    </nav>}
 
     {dropping && <div className="animate-fade pointer-events-none fixed inset-0 z-[90] grid place-items-center bg-base-100/70 backdrop-blur-sm">
-      <div className="animate-pop rounded-[2rem] border-2 border-dashed border-primary bg-base-100 px-10 py-8 text-center shadow-2xl">
+      <div className="animate-pop rounded-2xl border-2 border-dashed border-primary bg-base-100 px-10 py-8 text-center shadow-2xl">
         <FolderOpen className="mx-auto mb-3 text-primary" size={40} />
         <p className="font-display text-xl font-bold">Drop to add files</p>
         <p className="text-sm text-base-content/60">Images, videos and Lottie JSON are added to this lesson</p>

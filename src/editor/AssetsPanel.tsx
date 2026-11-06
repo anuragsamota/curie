@@ -34,14 +34,14 @@ export function AssetsPanel({ assets, usage, onUpload, onRemove, onUse, useLabel
       if (files.length) void onUpload(files);
     }} />
     {entries.length === 0
-      ? <p className="rounded-xl border border-dashed border-base-300 p-4 text-center text-xs leading-5 text-base-content/50">No files yet. Upload images, videos or Lottie JSON, or drop them onto the editor.</p>
+      ? <p className="rounded-lg border border-dashed border-base-300 p-4 text-center text-xs leading-5 text-base-content/50">No files yet. Upload images, videos or Lottie JSON, or drop them onto the editor.</p>
       : <>
         <p className="px-1 text-xs text-base-content/50">{entries.length} {entries.length === 1 ? "file" : "files"} · {formatBytes(total)}</p>
         <ul className="flex flex-col gap-1">
           {entries.map(([path, blob]) => {
             const count = usage.get(path) ?? 0;
             const label = useLabel?.(path);
-            return <li key={path} className="group flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-base-200">
+            return <li key={path} className="group flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-base-200">
               <Thumbnail path={path} blob={blob} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium" title={path}>{path.replace(/^assets\//, "")}</p>

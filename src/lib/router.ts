@@ -7,15 +7,22 @@ export type Route =
   | { name: "lesson"; key: string }
   | { name: "editor"; key: string }
   | { name: "explore" }
-  | { name: "settings" }
+  | { name: "study"; tab: StudyTab }
+  | { name: "settings"; section?: string }
   | { name: "notfound" };
+
+export type StudyTab = "assistant" | "notes" | "progress";
 
 export const paths = {
   library: "#/",
   lesson: (key: string) => `#/lesson/${encodeURIComponent(key)}`,
   editor: (key: string) => `#/edit/${encodeURIComponent(key)}`,
   explore: "#/explore",
+  study: "#/study",
+  notes: "#/study/notes",
+  progress: "#/study/progress",
   settings: "#/settings",
+  settingsSection: (id: string) => `#/settings/${id}`,
 };
 
 export function parseRoute(hash: string): Route {
@@ -24,7 +31,8 @@ export function parseRoute(hash: string): Route {
   if (parts[0] === "lesson" && parts[1]) return { name: "lesson", key: parts[1] };
   if (parts[0] === "edit" && parts[1]) return { name: "editor", key: parts[1] };
   if (parts[0] === "explore") return { name: "explore" };
-  if (parts[0] === "settings") return { name: "settings" };
+  if (parts[0] === "study") return { name: "study", tab: parts[1] === "notes" || parts[1] === "progress" ? parts[1] : "assistant" };
+  if (parts[0] === "settings") return { name: "settings", section: parts[1] };
   return { name: "notfound" };
 }
 

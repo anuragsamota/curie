@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { DEFAULT_AI_SETTINGS, type AiSettings } from "../ai/models";
+import { useMediaQuery } from "./media";
 import { DEFAULT_SOURCES, type LessonSource } from "./sources";
 import { appFolder, native } from "./storage";
 
@@ -20,6 +22,8 @@ export type Settings = {
   defaultAuthor: string;
   /** GitHub repositories listed on the Explore page. */
   sources: LessonSource[];
+  /** The study assistant's provider and behaviour (API keys are stored separately). */
+  ai: AiSettings;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -37,7 +41,13 @@ export const DEFAULT_SETTINGS: Settings = {
   confirmDeletes: true,
   defaultAuthor: "",
   sources: DEFAULT_SOURCES,
+  ai: DEFAULT_AI_SETTINGS,
 };
+
+/** Fills in settings added since the file was saved, including new fields inside `ai`. */
+function withDefaults(saved: Partial<Settings>): Settings {
+  return { ...DEFAULT_SETTINGS, ...saved, ai: { ...DEFAULT_AI_SETTINGS, ...saved.ai } };
+}
 
 const STORAGE_KEY = "curie-settings";
 
@@ -51,7 +61,7 @@ async function readNativeSettings(): Promise<Settings> {
   const fs = await import("@tauri-apps/plugin-fs");
   const path = await settingsFile();
   if (!(await fs.exists(path))) return DEFAULT_SETTINGS;
-  return { ...DEFAULT_SETTINGS, ...(JSON.parse(await fs.readTextFile(path)) as Partial<Settings>) };
+  return withDefaults(JSON.parse(await fs.readTextFile(path)) as Partial<Settings>);
 }
 
 async function writeNativeSettings(settings: Settings) {
@@ -63,27 +73,16 @@ async function writeNativeSettings(settings: Settings) {
 function readSettings(): Settings {
   if (native) return DEFAULT_SETTINGS;
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<Settings>;
-    return { ...DEFAULT_SETTINGS, ...saved };
+    return withDefaults(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}") as Partial<Settings>);
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const list = window.matchMedia(query);
-    const update = () => setMatches(list.matches);
-    list.addEventListener("change", update);
-    return () => list.removeEventListener("change", update);
-  }, [query]);
-  return matches;
-}
-
 type SettingsContextValue = {
   settings: Settings;
-  update: (patch: Partial<Settings>) => void;
+  /** Merges a patch; pass a function to build it from the latest settings. */
+  update: (patch: Partial<Settings> | ((current: Settings) => Partial<Settings>)) => void;
   reset: () => void;
   /** The theme actually applied after resolving "system". */
   mode: "light" | "dark";
@@ -123,7 +122,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", mode === "dark" ? "#13111f" : "#fdfcfa");
   }, [mode, reducedMotion, settings.textSize]);
 
-  const update = useCallback((patch: Partial<Settings>) => setSettings((current) => ({ ...current, ...patch })), []);
+  const update = useCallback((patch: Partial<Settings> | ((current: Settings) => Partial<Settings>)) =>
+    setSettings((current) => ({ ...current, ...(typeof patch === "function" ? patch(current) : patch) })), []);
   const reset = useCallback(() => setSettings(DEFAULT_SETTINGS), []);
   const value = useMemo(() => ({ settings, update, reset, mode, reducedMotion }), [settings, update, reset, mode, reducedMotion]);
   return <SettingsContext.Provider value={value}>{loaded ? children : null}</SettingsContext.Provider>;
